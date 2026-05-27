@@ -221,10 +221,47 @@ footer{text-align:center;font-size:11px;color:var(--faint);padding:18px 16px 24p
   <button class="tab checklist"  id="tab-checklist" onclick="switchTab('checklist')">✅ <span class="tab-lbl">Checklist</span> <span class="tab-badge" id="badge-checklist" style="display:none">0</span></button>
 </nav>
 
+<!-- ══ FILE:// PROTOCOL BANNER (hidden unless opened directly from disk) ══ -->
+<div id="file-warn" style="display:none;background:#fef2f2;border-bottom:2px solid #dc2626;padding:14px 24px;font-size:13px;color:#7f1d1d">
+  <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <div style="flex:1;min-width:260px">
+      <strong style="font-size:14px">🚫 AI is blocked — you opened this file directly from your desktop.</strong><br>
+      Browsers forbid API calls from <code style="background:#fee2e2;padding:1px 5px;border-radius:3px">file://</code> addresses.
+      You need to serve it over HTTP first. Pick one of these — it takes 30 seconds:
+      <div style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px">
+        <div style="background:#fff;border:1px solid #fca5a5;border-radius:6px;padding:10px 12px">
+          <strong>Option A — Python (no install needed)</strong><br>
+          Open your terminal in the folder containing <code>index.html</code>, then run:<br>
+          <code id="py-cmd" style="display:block;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:6px 8px;margin-top:6px;font-size:12px;word-break:break-all">python -m http.server 8080</code>
+          Then open → <a href="http://localhost:8080" target="_blank" style="color:#dc2626;font-weight:700">http://localhost:8080</a>
+        </div>
+        <div style="background:#fff;border:1px solid #fca5a5;border-radius:6px;padding:10px 12px">
+          <strong>Option B — VS Code Live Server</strong><br>
+          1. Install the <em>Live Server</em> extension in VS Code<br>
+          2. Right-click <code>index.html</code> in the Explorer<br>
+          3. Choose <strong>"Open with Live Server"</strong><br>
+          → Browser opens automatically at <code>http://127.0.0.1:5500</code>
+        </div>
+        <div style="background:#fff;border:1px solid #fca5a5;border-radius:6px;padding:10px 12px">
+          <strong>Option C — GitHub Pages (permanent)</strong><br>
+          Push <code>index.html</code> to GitHub → Settings → Pages → Deploy from branch → main.<br>
+          Live at <code>https://username.github.io/repo/</code>. AI works instantly, every time.
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:#991b1b">
+        💡 Manual row entry (Add Row / Add Item buttons) works without a server. Only AI generation needs HTTP.
+      </div>
+    </div>
+    <button onclick="document.getElementById('file-warn').style.display='none'"
+      style="background:#dc2626;color:#fff;border:none;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:700;white-space:nowrap;align-self:flex-start">
+      ✕ Dismiss
+    </button>
+  </div>
+</div>
+
 <!-- ══ NO-KEY WARNING BANNER ═══════════════════════════════════ -->
-<div id="key-warn" style="background:#fef9c3;border-bottom:1px solid #fde047;
-  padding:9px 24px;font-size:12px;color:#854d0e;display:flex;align-items:center;
-  gap:10px;flex-wrap:wrap">
+<div id="key-warn" style="display:none;background:#fef9c3;border-bottom:1px solid #fde047;
+  padding:9px 24px;font-size:12px;color:#854d0e;align-items:center;gap:10px;flex-wrap:wrap">
   ⚠ <strong>No API key set.</strong>
   Click <strong>🔑 Set API Key</strong> (top-right) to enable AI generation.
   Manual row entry works without a key.
@@ -583,10 +620,17 @@ async function callClaude(sys, usr) {
     });
   } catch(netErr) {
     // Network / CORS error — fetch itself throws before we get a response
+    const isFileProt = window.location.protocol === 'file:';
+    if(isFileProt) {
+      throw new Error(
+        'You are opening this file directly from disk (file://) — browsers block all API calls from file:// addresses. '+
+        'Fix: open a terminal in this folder and run:  python3 -m http.server 8080  '+
+        'then visit http://localhost:8080  — or push to GitHub Pages.'
+      );
+    }
     throw new Error(
       'Network error — could not reach the Anthropic API. '+
-      'If running from a local file (file://), open this page via a local server or deploy to GitHub Pages. '+
-      'Check your internet connection and try again. ('+netErr.message+')'
+      'Check your internet connection, confirm your API key is valid, and try again. ('+netErr.message+')'
     );
   }
   if(res.status===401) throw new Error('Invalid API key (401 Unauthorised). Re-enter your key via the 🔑 button.');
@@ -940,6 +984,27 @@ function updateKeyBanner() {
   const banner = document.getElementById('key-warn');
   if(banner) banner.style.display = apiKey ? 'none' : 'flex';
 }
+
+// Detect file:// protocol — browsers block cross-origin fetch from file: URLs
+function checkProtocol() {
+  if(window.location.protocol !== 'file:') return;
+  const warn = document.getElementById('file-warn');
+  if(warn) warn.style.display = 'block';
+  // Show OS-appropriate Python command
+  const pyCmd = document.getElementById('py-cmd');
+  if(pyCmd) {
+    // Navigator platform is deprecated but still readable for this hint
+    const isWin = navigator.userAgent.toLowerCase().includes('windows');
+    pyCmd.textContent = isWin
+      ? 'python -m http.server 8080   (or: py -m http.server 8080)'
+      : 'python3 -m http.server 8080';
+  }
+  // Disable AI generate buttons so users aren't confused by the CORS error
+  ['btn-gen-hazid','btn-gen-whatif','btn-gen-checklist'].forEach(id => {
+    const btn = document.getElementById(id);
+    if(btn){ btn.disabled = true; btn.title = 'AI blocked from file:// — serve via HTTP first (see banner above)'; }
+  });
+}
 function saveApiKey() {
   const val=document.getElementById('key-input').value.trim();
   if(!val) return;
@@ -966,6 +1031,7 @@ function init() {
   // Render tables
   renderHazid();renderWhatif();renderChecklist();
   updateHeader();updateBadges();updateKeyBanner();
+  checkProtocol(); // must run last — may disable AI buttons
 }
 
 init();
