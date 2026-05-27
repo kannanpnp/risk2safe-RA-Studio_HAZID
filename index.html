@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="PHA Studio – AI-powered HAZID, What-If and Checklist studies for process safety professionals.">
+<meta name="description" content="PHA Studio – OpenAI-powered HAZID, What-If and Checklist studies for process safety professionals.">
 <title>PHA Studio – AI-Powered Hazard Analysis</title>
 <style>
 /* ── Reset ───────────────────────────────────────────────────── */
@@ -263,7 +263,7 @@ footer{text-align:center;font-size:11px;color:var(--faint);padding:18px 16px 24p
 <div id="key-warn" style="display:none;background:#fef9c3;border-bottom:1px solid #fde047;
   padding:9px 24px;font-size:12px;color:#854d0e;align-items:center;gap:10px;flex-wrap:wrap">
   ⚠ <strong>No API key set.</strong>
-  Click <strong>🔑 Set API Key</strong> (top-right) to enable AI generation.
+  Click <strong>🔑 Set API Key</strong> (top-right) and enter your OpenAI key to enable AI generation.
   Manual row entry works without a key.
   <button onclick="showKeyModal()" style="margin-left:auto;background:#b45309;color:#fff;
     border:none;border-radius:4px;padding:5px 14px;cursor:pointer;font-size:12px;font-weight:700">
@@ -478,25 +478,25 @@ The AI uses this to generate specific, realistic hazard scenarios across all thr
 <!-- ══ API KEY MODAL ═══════════════════════════════════════════ -->
 <div class="overlay" id="key-overlay" onclick="hideKeyModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-title">🔑 Anthropic API Key</div>
+    <div class="modal-title">🔑 OpenAI API Key</div>
     <div class="modal-sub">
-      PHA Studio calls the Anthropic Claude API to generate hazard scenarios.
-      Get your key at <a href="https://console.anthropic.com" target="_blank" rel="noreferrer">console.anthropic.com</a>.
-      The key is stored only in your browser's local storage and sent only to Anthropic's servers.
+      PHA Studio uses the OpenAI API to generate hazard scenarios.
+      Get your key at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">platform.openai.com/api-keys</a>.
+      The key is stored only in your browser's local storage and sent only to OpenAI's servers.
     </div>
     <div class="modal-warn">
       ⚠ Keep your API key confidential. For shared / multi-user deployments, proxy
       API calls through a backend to avoid exposing the key in the browser.
     </div>
     <div class="field">
-      <label>API Key</label>
-      <input type="password" id="key-input" placeholder="sk-ant-api03-…">
+      <label>OpenAI API Key</label>
+      <input type="password" id="key-input" placeholder="sk-proj-…  or  sk-…">
     </div>
     <div class="field" style="margin-top:12px">
       <label>AI Model</label>
       <select id="model-select" onchange="MODEL=this.value;localStorage.setItem(LS.model,MODEL)">
       </select>
-      <div style="font-size:11px;color:var(--muted);margin-top:4px">Haiku is fastest &amp; cheapest. Sonnet gives richer analysis. All are valid external API models.</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">GPT-4o Mini is the fastest and most cost-effective — ideal for structured JSON generation.</div>
     </div>
     <div class="modal-actions" style="justify-content:space-between">
       <button class="btn btn-out" id="btn-test-api" onclick="testApiConnection()" style="gap:6px">
@@ -516,17 +516,18 @@ The AI uses this to generate specific, realistic hazard scenarios across all thr
 'use strict';
 
 // ─── Constants ────────────────────────────────────────────────
-const API_URL = 'https://api.anthropic.com/v1/messages';
+const API_URL = 'https://api.openai.com/v1/chat/completions';
 const LS      = { key:'pha_apikey', model:'pha_model', proj:'pha_project', hazid:'pha_hazid', whatif:'pha_whatif', cl:'pha_checklist' };
 
-// Valid public Anthropic API model strings (claude-sonnet-4-20250514 is internal to Claude.ai only)
+// OpenAI public model strings — all support JSON-mode structured output
 const MODELS = [
-  { id:'claude-haiku-4-5-20251001',   label:'Claude Haiku 4.5   — fastest, most economical' },
-  { id:'claude-sonnet-4-6',           label:'Claude Sonnet 4.6  — recommended balance' },
-  { id:'claude-3-5-sonnet-20241022',  label:'Claude 3.5 Sonnet  — widely supported fallback' },
-  { id:'claude-3-5-haiku-20241022',   label:'Claude 3.5 Haiku   — fast fallback' },
+  { id:'gpt-4o-mini',     label:'GPT-4o Mini    — fastest, most economical (recommended)' },
+  { id:'gpt-4o',          label:'GPT-4o         — best quality, higher cost' },
+  { id:'gpt-4.1-mini',    label:'GPT-4.1 Mini   — latest fast model' },
+  { id:'gpt-4.1',         label:'GPT-4.1        — latest high-quality model' },
+  { id:'gpt-3.5-turbo',   label:'GPT-3.5 Turbo  — legacy fallback' },
 ];
-let MODEL = localStorage.getItem(LS.model) || 'claude-haiku-4-5-20251001';
+let MODEL = localStorage.getItem(LS.model) || 'gpt-4o-mini';
 
 // ─── State ────────────────────────────────────────────────────
 let apiKey = '';
@@ -622,46 +623,44 @@ function projUpd(field, val) {
   updateHeader();
 }
 
-// ─── API call ─────────────────────────────────────────────────
-async function callClaude(sys, usr) {
-  if(!apiKey) throw new Error('No API key set — click the 🔑 button (top-right) and enter your Anthropic API key first.');
+// ─── OpenAI API call ──────────────────────────────────────────
+async function callAI(sys, usr) {
+  if(!apiKey) throw new Error('No API key set — click the 🔑 button (top-right) and enter your OpenAI API key first.');
   let res;
   try {
     res = await fetch(API_URL, {
       method:'POST',
       headers:{
         'Content-Type':'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version':'2023-06-01',
-        'anthropic-dangerous-allow-browser':'true'
+        'Authorization':'Bearer '+apiKey
       },
-      body: JSON.stringify({ model:MODEL, max_tokens:2500, system:sys,
-        messages:[{role:'user',content:usr}] })
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 2500,
+        messages: [
+          { role:'system', content: sys },
+          { role:'user',   content: usr }
+        ]
+      })
     });
   } catch(netErr) {
-    // Network / CORS error — fetch itself throws before we get a response
     const isFileProt = window.location.protocol === 'file:';
     if(isFileProt) {
       throw new Error(
         'You are opening this file directly from disk (file://) — browsers block all API calls from file:// addresses. '+
-        'Fix: open a terminal in this folder and run:  python3 -m http.server 8080  '+
-        'then visit http://localhost:8080  — or push to GitHub Pages.'
+        'Fix: run  python3 -m http.server 8080  in this folder, then open http://localhost:8080  — or push to GitHub Pages.'
       );
     }
-    throw new Error(
-      'Network error — could not reach the Anthropic API. '+
-      'Check your internet connection, confirm your API key is valid, and try again. ('+netErr.message+')'
-    );
+    throw new Error('Network error — could not reach the OpenAI API. Check your internet connection and try again. ('+netErr.message+')');
   }
-  if(res.status===401) throw new Error('Invalid API key (401 Unauthorised). Re-enter your key via the 🔑 button.');
+  if(res.status===401) throw new Error('Invalid API key (401 Unauthorised). Re-enter your OpenAI key via the 🔑 button.');
   if(res.status===429) throw new Error('Rate limit reached (429). Wait a moment, then try again.');
   if(!res.ok) {
     const e = await res.json().catch(()=>({}));
-    throw new Error('Anthropic API error '+(e?.error?.message||'HTTP '+res.status));
+    throw new Error('OpenAI API error — '+(e?.error?.message||'HTTP '+res.status));
   }
   const d = await res.json();
-  const raw = (d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
-  // Strip markdown fences Claude sometimes adds
+  const raw = d.choices?.[0]?.message?.content || '';
   const clean = raw.replace(/```json\s*/gi,'').replace(/```\s*/gi,'').trim();
   try { return JSON.parse(clean); }
   catch(parseErr) {
@@ -767,7 +766,7 @@ Conditions: ${project.conditions||'not specified'}
 Phase: ${project.phase}
 Generate exactly 6 HAZID entries. Cover: 1) fire/explosion 2) toxic/flammable release 3) structural damage 4) utility failure 5) personnel injury 6) emergency response failure. Be specific to this system.`;
   try {
-    const items = await callClaude(sys, usr);
+    const items = await callAI(sys, usr);
     hazid = items.map(i=>({...blankHazid(),...i,id:uid()}));
     saveState(); renderHazid();
   } catch(e) { showErr('hazid-err', e.message); }
@@ -846,7 +845,7 @@ Description: ${project.description}
 Conditions: ${project.conditions||'not specified'}
 Generate exactly 6 What-If entries for this system: 1) no/low flow 2) high pressure 3) high temperature 4) equipment/valve failure 5) utility loss 6) human error. Be specific.`;
   try {
-    const items=await callClaude(sys,usr);
+    const items=await callAI(sys,usr);
     whatif=items.map(i=>({...blankWhatif(),...i,id:uid()}));
     saveState();renderWhatif();
   } catch(e){showErr('whatif-err',e.message);}
@@ -946,7 +945,7 @@ Description: ${project.description}
 Conditions: ${project.conditions||'not specified'}
 Generate exactly 8 checklist items across at least 4 different categories. Each must be a specific, answerable yes/no compliance question for this system. Number refs 1–8.`;
   try {
-    const items=await callClaude(sys,usr);
+    const items=await callAI(sys,usr);
     checklist=items.map(i=>({...blankChecklist(),...i,id:uid()}));
     clFilter='all';saveState();renderChecklist();
   } catch(e){showErr('checklist-err',e.message);}
@@ -1010,22 +1009,22 @@ async function testApiConnection() {
   if(!key){ out.style.display='block'; out.style.background='#fef9c3'; out.style.color='#854d0e'; out.textContent='⚠ Enter an API key first.'; return; }
   const btn = document.getElementById('btn-test-api');
   btn.disabled=true; btn.textContent='🔌 Testing…';
-  out.style.display='block'; out.style.background='#f9fafb'; out.style.color='var(--muted)'; out.textContent='Sending test request…';
+  out.style.display='block'; out.style.background='#f9fafb'; out.style.color='var(--muted)'; out.textContent='Sending test request to OpenAI…';
   try {
     const res = await fetch(API_URL, {
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
-      body: JSON.stringify({model:mdl,max_tokens:30,messages:[{role:'user',content:'Reply with just: OK'}]})
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+      body: JSON.stringify({model:mdl, max_tokens:20, messages:[{role:'user',content:'Reply with just the word: OK'}]})
     });
     if(res.ok){
       const d=await res.json();
-      const txt=(d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+      const txt=(d.choices?.[0]?.message?.content||'').trim();
       out.style.background='#dcfce7'; out.style.color='#166534';
-      out.textContent=`✅ Connected! Model: ${mdl} — Response: "${txt}"`;
+      out.textContent=`✅ Connected! Model: ${mdl} · Response: "${txt}"`;
     } else {
       const e=await res.json().catch(()=>({}));
       out.style.background='#fee2e2'; out.style.color='#991b1b';
-      out.textContent=`❌ HTTP ${res.status}: ${e?.error?.message||'API error'}`;
+      out.textContent=`❌ HTTP ${res.status}: ${e?.error?.message||'API error — check your key and try again.'}`;
     }
   } catch(err) {
     out.style.background='#fee2e2'; out.style.color='#991b1b';
