@@ -492,10 +492,22 @@ The AI uses this to generate specific, realistic hazard scenarios across all thr
       <label>API Key</label>
       <input type="password" id="key-input" placeholder="sk-ant-api03-…">
     </div>
-    <div class="modal-actions">
-      <button class="btn btn-out" onclick="hideKeyModal()">Cancel</button>
-      <button class="btn btn-nav" onclick="saveApiKey()">Save Key</button>
+    <div class="field" style="margin-top:12px">
+      <label>AI Model</label>
+      <select id="model-select" onchange="MODEL=this.value;localStorage.setItem(LS.model,MODEL)">
+      </select>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Haiku is fastest &amp; cheapest. Sonnet gives richer analysis. All are valid external API models.</div>
     </div>
+    <div class="modal-actions" style="justify-content:space-between">
+      <button class="btn btn-out" id="btn-test-api" onclick="testApiConnection()" style="gap:6px">
+        🔌 Test Connection
+      </button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-out" onclick="hideKeyModal()">Cancel</button>
+        <button class="btn btn-nav" onclick="saveApiKey()">Save Key</button>
+      </div>
+    </div>
+    <div id="test-result" style="display:none;margin-top:10px;padding:8px 12px;border-radius:6px;font-size:12px"></div>
   </div>
 </div>
 
@@ -505,8 +517,16 @@ The AI uses this to generate specific, realistic hazard scenarios across all thr
 
 // ─── Constants ────────────────────────────────────────────────
 const API_URL = 'https://api.anthropic.com/v1/messages';
-const MODEL   = 'claude-sonnet-4-20250514';
-const LS      = { key:'pha_apikey', proj:'pha_project', hazid:'pha_hazid', whatif:'pha_whatif', cl:'pha_checklist' };
+const LS      = { key:'pha_apikey', model:'pha_model', proj:'pha_project', hazid:'pha_hazid', whatif:'pha_whatif', cl:'pha_checklist' };
+
+// Valid public Anthropic API model strings (claude-sonnet-4-20250514 is internal to Claude.ai only)
+const MODELS = [
+  { id:'claude-haiku-4-5-20251001',   label:'Claude Haiku 4.5   — fastest, most economical' },
+  { id:'claude-sonnet-4-6',           label:'Claude Sonnet 4.6  — recommended balance' },
+  { id:'claude-3-5-sonnet-20241022',  label:'Claude 3.5 Sonnet  — widely supported fallback' },
+  { id:'claude-3-5-haiku-20241022',   label:'Claude 3.5 Haiku   — fast fallback' },
+];
+let MODEL = localStorage.getItem(LS.model) || 'claude-haiku-4-5-20251001';
 
 // ─── State ────────────────────────────────────────────────────
 let apiKey = '';
@@ -973,8 +993,45 @@ function clearAllData() {
 // ─── API Key modal ────────────────────────────────────────────
 function showKeyModal() {
   document.getElementById('key-input').value=apiKey;
+  // Populate model dropdown
+  const sel = document.getElementById('model-select');
+  sel.innerHTML = MODELS.map(m =>
+    `<option value="${m.id}"${m.id===MODEL?' selected':''}>${m.label}</option>`
+  ).join('');
+  document.getElementById('test-result').style.display='none';
   document.getElementById('key-overlay').classList.add('open');
   setTimeout(()=>document.getElementById('key-input').focus(),50);
+}
+
+async function testApiConnection() {
+  const key = document.getElementById('key-input').value.trim();
+  const mdl = document.getElementById('model-select').value;
+  const out = document.getElementById('test-result');
+  if(!key){ out.style.display='block'; out.style.background='#fef9c3'; out.style.color='#854d0e'; out.textContent='⚠ Enter an API key first.'; return; }
+  const btn = document.getElementById('btn-test-api');
+  btn.disabled=true; btn.textContent='🔌 Testing…';
+  out.style.display='block'; out.style.background='#f9fafb'; out.style.color='var(--muted)'; out.textContent='Sending test request…';
+  try {
+    const res = await fetch(API_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
+      body: JSON.stringify({model:mdl,max_tokens:30,messages:[{role:'user',content:'Reply with just: OK'}]})
+    });
+    if(res.ok){
+      const d=await res.json();
+      const txt=(d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+      out.style.background='#dcfce7'; out.style.color='#166534';
+      out.textContent=`✅ Connected! Model: ${mdl} — Response: "${txt}"`;
+    } else {
+      const e=await res.json().catch(()=>({}));
+      out.style.background='#fee2e2'; out.style.color='#991b1b';
+      out.textContent=`❌ HTTP ${res.status}: ${e?.error?.message||'API error'}`;
+    }
+  } catch(err) {
+    out.style.background='#fee2e2'; out.style.color='#991b1b';
+    out.textContent=`❌ Network error — ${err.message}. ${window.location.protocol==='file:'?'Open via HTTP server, not file://.':'Check internet connection.'}`;
+  }
+  btn.disabled=false; btn.textContent='🔌 Test Connection';
 }
 function hideKeyModal(e) {
   if(e&&e.target!==document.getElementById('key-overlay'))return;
@@ -1008,6 +1065,8 @@ function checkProtocol() {
 function saveApiKey() {
   const val=document.getElementById('key-input').value.trim();
   if(!val) return;
+  MODEL = document.getElementById('model-select').value;
+  localStorage.setItem(LS.model, MODEL);
   apiKey=val; saveState(); updateHeader(); updateKeyBanner();
   document.getElementById('key-overlay').classList.remove('open');
 }
