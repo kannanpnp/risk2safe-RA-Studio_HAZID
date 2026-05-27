@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="PHA Studio – AI-powered HAZID, What-If and Checklist studies for process safety professionals.">
+<title>PHA Studio – AI-Powered Hazard Analysis</title>
+<style>
+/* ── Reset ───────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+/* ── Design tokens ───────────────────────────────────────────── */
+:root{
+  --primary:#1e3a5f; --primary-h:#2a527a;
+  --amber:#b45309; --amber-bg:#fffbeb; --amber-b:#fcd34d; --amber-t:#92400e;
+  --blue:#1d4ed8;  --blue-bg:#eff6ff;  --blue-b:#93c5fd;  --blue-t:#1e40af;
+  --green:#15803d; --green-bg:#f0fdf4; --green-b:#86efac; --green-t:#166534;
+  --danger:#dc2626; --danger-bg:#fef2f2; --danger-b:#fca5a5;
+  --text:#111827; --muted:#6b7280; --faint:#9ca3af;
+  --bg:#f9fafb; --surface:#ffffff; --border:#e5e7eb; --border-md:#d1d5db;
+  --r:8px; --r-sm:4px; --r-lg:12px;
+  --shadow:0 1px 3px rgba(0,0,0,.08);
+  --shadow-lg:0 8px 32px rgba(0,0,0,.14);
+  --transition:.14s ease;
+}
+
+/* ── Base ────────────────────────────────────────────────────── */
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  font-size:14px;line-height:1.5;color:var(--text);background:var(--bg);min-height:100vh}
+a{color:var(--blue)}
+
+/* ── Header ──────────────────────────────────────────────────── */
+.hdr{background:linear-gradient(135deg,#1e3a5f 0%,#0f2540 100%);color:#fff;padding:14px 24px}
+.hdr-inner{max-width:1380px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.hdr-brand{display:flex;align-items:center;gap:12px}
+.hdr-logo{width:38px;height:38px;background:rgba(255,255,255,.14);border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;font-size:22px}
+.hdr-title{font-size:17px;font-weight:700;letter-spacing:-.2px;display:flex;align-items:center;gap:8px}
+.ai-badge{background:rgba(255,255,255,.18);font-size:9px;font-weight:700;padding:2px 8px;border-radius:20px;letter-spacing:.8px}
+.hdr-sub{font-size:11px;opacity:.6;margin-top:1px}
+.hdr-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.hdr-meta{text-align:right;font-size:11px;opacity:.75}
+.hdr-meta strong{display:block;font-size:13px;opacity:1;margin-bottom:1px}
+.btn-key{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;
+  background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);color:#fff;
+  border-radius:var(--r-sm);padding:6px 12px;cursor:pointer;transition:background var(--transition);white-space:nowrap}
+.btn-key:hover{background:rgba(255,255,255,.24)}
+.btn-key.ok{background:rgba(34,197,94,.22);border-color:rgba(34,197,94,.4)}
+
+/* ── Tabs ────────────────────────────────────────────────────── */
+.tabs{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;
+  display:flex;gap:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab{display:flex;align-items:center;gap:7px;padding:11px 16px;font-size:13px;font-weight:500;
+  cursor:pointer;border:none;background:none;color:var(--muted);border-bottom:2px solid transparent;
+  margin-bottom:-1px;transition:color var(--transition),background var(--transition);white-space:nowrap}
+.tab:hover{color:var(--text);background:var(--bg)}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+.tab.active.hazid{color:var(--amber);border-bottom-color:var(--amber)}
+.tab.active.whatif{color:var(--blue);border-bottom-color:var(--blue)}
+.tab.active.checklist{color:var(--green);border-bottom-color:var(--green)}
+.tab-badge{background:var(--bg);color:var(--muted);font-size:10px;font-weight:700;
+  padding:1px 6px;border-radius:10px;min-width:20px;text-align:center}
+
+/* ── Layout ──────────────────────────────────────────────────── */
+.main{max-width:1380px;margin:0 auto;padding:20px 16px}
+.panel{display:none}.panel.active{display:block}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:22px 24px;box-shadow:var(--shadow)}
+
+/* ── AI toolbar ──────────────────────────────────────────────── */
+.ai-bar{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
+  padding:12px 16px;border-radius:var(--r);margin-bottom:12px;flex-wrap:wrap}
+.ai-bar.amber{background:var(--amber-bg);border:1px solid var(--amber-b)}
+.ai-bar.blue {background:var(--blue-bg); border:1px solid var(--blue-b)}
+.ai-bar.green{background:var(--green-bg);border:1px solid var(--green-b)}
+.ai-label{display:flex;align-items:center;gap:6px;font-weight:700;font-size:12px;margin-bottom:3px}
+.ai-label.amber{color:var(--amber-t)}.ai-label.blue{color:var(--blue-t)}.ai-label.green{color:var(--green-t)}
+.ai-hint{font-size:11px;color:var(--muted);max-width:600px}
+.ai-err{font-size:11px;color:var(--danger);background:var(--danger-bg);border:1px solid var(--danger-b);
+  border-radius:var(--r-sm);padding:5px 9px;margin-top:6px;max-width:600px}
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--r-sm);
+  font-size:12px;font-weight:700;cursor:pointer;border:none;transition:opacity var(--transition);white-space:nowrap}
+.btn:hover{opacity:.86}.btn:active{transform:scale(.98)}.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.btn-amber{background:var(--amber);color:#fff}
+.btn-blue {background:var(--blue); color:#fff}
+.btn-green{background:var(--green);color:#fff}
+.btn-nav  {background:var(--primary);color:#fff}
+.btn-out  {background:transparent;color:var(--muted);border:1px solid var(--border-md)}
+.btn-out:hover{background:var(--bg);color:var(--text)}
+.btn-add  {margin-top:10px;font-size:12px;color:var(--muted);border:1px dashed var(--border-md);
+  border-radius:var(--r-sm);padding:6px 13px;cursor:pointer;background:transparent;
+  display:inline-flex;align-items:center;gap:5px;transition:all var(--transition)}
+.btn-add:hover{background:var(--bg);border-style:solid;color:var(--text)}
+.btn-del{background:none;border:none;cursor:pointer;color:var(--faint);padding:3px 5px;
+  display:inline-flex;align-items:center;transition:color var(--transition)}
+.btn-del:hover{color:var(--danger)}
+
+/* ── Table ───────────────────────────────────────────────────── */
+.tbl-wrap{border:1px solid var(--border);border-radius:var(--r);overflow:auto;max-height:430px}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+thead{position:sticky;top:0;z-index:5}
+th{padding:8px 9px;text-align:left;font-size:11px;font-weight:700;letter-spacing:.3px;
+  color:#fff;white-space:nowrap}
+th.ah{background:var(--amber)} th.bh{background:var(--blue)} th.gh{background:var(--green)}
+td{padding:4px 6px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:nth-child(even) td{background:#f9f9fb}
+tr:hover td{background:#e8f0fd44}
+td input,td select{width:100%;background:transparent;border:none;font-size:11.5px;
+  color:var(--text);font-family:inherit;outline:none;padding:2px 3px}
+td input:focus,td select:focus{background:#fff;border-radius:3px;box-shadow:0 0 0 2px #3b82f660}
+.empty-row td{text-align:center;color:var(--faint);padding:36px 16px;font-style:italic;font-size:12px}
+
+/* ── Risk badges ─────────────────────────────────────────────── */
+.risk{display:inline-block;padding:3px 7px;border-radius:4px;font-size:10px;
+  font-weight:700;text-align:center;line-height:1.35;min-width:54px}
+.risk-h {background:#dc2626;color:#fff}
+.risk-mh{background:#ea580c;color:#fff}
+.risk-m {background:#ca8a04;color:#fff}
+.risk-l {background:#16a34a;color:#fff}
+.risk-n {background:var(--bg);color:var(--faint)}
+
+/* ── Risk legend ─────────────────────────────────────────────── */
+.legend{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg);
+  border:1px solid var(--border);border-radius:var(--r-sm);padding:7px 12px;margin-bottom:10px;
+  font-size:10.5px;color:var(--muted)}
+.legend-item{display:flex;align-items:center;gap:4px}
+.legend-note{margin-left:auto;font-size:10px;color:var(--faint)}
+
+/* ── Form ────────────────────────────────────────────────────── */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.form-full{grid-column:1/-1}
+.field label{display:block;font-size:11px;font-weight:700;color:var(--muted);
+  margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+.req{color:var(--danger);margin-left:2px}
+.field input,.field select,.field textarea{width:100%;border:1px solid var(--border-md);
+  border-radius:var(--r-sm);padding:8px 11px;font-size:13px;color:var(--text);
+  background:var(--surface);font-family:inherit;outline:none;
+  transition:border-color var(--transition),box-shadow var(--transition)}
+.field input:focus,.field select:focus,.field textarea:focus{
+  border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+.info-box{background:var(--blue-bg);border:1px solid var(--blue-b);border-radius:var(--r-sm);
+  padding:11px 14px;font-size:12px;color:var(--blue-t);line-height:1.6;margin-top:14px}
+
+/* ── Checklist pills ─────────────────────────────────────────── */
+.cl-stats{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.cl-pill{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;
+  cursor:pointer;border:2px solid transparent;transition:all var(--transition)}
+.cl-pill:hover{opacity:.82}
+.cl-pill.af{border-color:var(--primary);box-shadow:0 0 0 2px rgba(30,58,95,.2)}
+.cl-yes    {background:#dcfce7;color:#166534}
+.cl-no     {background:#fee2e2;color:#991b1b}
+.cl-partial{background:#fefce8;color:#854d0e}
+.cl-tbd    {background:var(--blue-bg);color:var(--blue-t)}
+.cl-na     {background:var(--bg);color:var(--muted)}
+td select.ry{background:#dcfce7;color:#166534;border-radius:4px;font-weight:600}
+td select.rn{background:#fee2e2;color:#991b1b;border-radius:4px;font-weight:600}
+td select.rp{background:#fefce8;color:#854d0e;border-radius:4px}
+td select.rt{background:var(--blue-bg);color:var(--blue-t);border-radius:4px}
+td select.ra{background:var(--bg);color:var(--muted);border-radius:4px}
+
+/* ── Export bar ──────────────────────────────────────────────── */
+.export-bar{display:flex;align-items:center;gap:8px;margin-top:14px;
+  padding-top:12px;border-top:1px solid var(--border);flex-wrap:wrap}
+.export-lbl{font-size:11px;color:var(--muted);margin-right:2px}
+
+/* ── Modal ───────────────────────────────────────────────────── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.52);display:none;
+  align-items:center;justify-content:center;z-index:1000;padding:16px}
+.overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:var(--r-lg);padding:28px;width:100%;
+  max-width:480px;box-shadow:var(--shadow-lg)}
+.modal-title{font-size:17px;font-weight:800;margin-bottom:6px}
+.modal-sub{font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6}
+.modal-warn{background:#fefce8;border:1px solid #fde047;border-radius:var(--r-sm);
+  padding:9px 12px;font-size:11px;color:#854d0e;margin-bottom:16px;line-height:1.5}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+
+/* ── Footer ──────────────────────────────────────────────────── */
+footer{text-align:center;font-size:11px;color:var(--faint);padding:18px 16px 24px;
+  border-top:1px solid var(--border);margin-top:8px}
+
+/* ── Spinner ─────────────────────────────────────────────────── */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{display:inline-block;animation:spin .9s linear infinite}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media(max-width:640px){
+  .form-grid{grid-template-columns:1fr}
+  .hdr-meta{display:none}
+  .tab span.tab-lbl{display:none}
+  .legend-note{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ══ HEADER ══════════════════════════════════════════════════ -->
+<header class="hdr">
+  <div class="hdr-inner">
+    <div class="hdr-brand">
+      <div class="hdr-logo">⚠️</div>
+      <div>
+        <div class="hdr-title">PHA Studio <span class="ai-badge">AI</span></div>
+        <div class="hdr-sub">Process Hazard Analysis · HAZID · What-If · Checklist</div>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <div class="hdr-meta" id="hdr-meta" style="display:none"></div>
+      <button class="btn-key" id="btn-key" onclick="showKeyModal()">🔑 Set API Key</button>
+    </div>
+  </div>
+</header>
+
+<!-- ══ TAB NAV ═════════════════════════════════════════════════ -->
+<nav class="tabs">
+  <button class="tab active"     id="tab-setup"     onclick="switchTab('setup')">📋 <span class="tab-lbl">Project Setup</span></button>
+  <button class="tab hazid"      id="tab-hazid"     onclick="switchTab('hazid')">🔺 <span class="tab-lbl">HAZID</span> <span class="tab-badge" id="badge-hazid" style="display:none">0</span></button>
+  <button class="tab whatif"     id="tab-whatif"    onclick="switchTab('whatif')">❓ <span class="tab-lbl">What-If</span> <span class="tab-badge" id="badge-whatif" style="display:none">0</span></button>
+  <button class="tab checklist"  id="tab-checklist" onclick="switchTab('checklist')">✅ <span class="tab-lbl">Checklist</span> <span class="tab-badge" id="badge-checklist" style="display:none">0</span></button>
+</nav>
+
+<!-- ══ MAIN ════════════════════════════════════════════════════ -->
+<main class="main">
+
+  <!-- ── PROJECT SETUP ──────────────────────────────────────── -->
+  <div class="panel active" id="panel-setup">
+    <div class="card">
+      <div style="font-size:15px;font-weight:700;margin-bottom:18px;display:flex;align-items:center;gap:8px">📄 Project Information</div>
+      <div class="form-grid">
+        <div class="field"><label>Study Title</label>
+          <input id="p-title" placeholder="e.g. PHA Study – HP Separator Unit Rev 0" oninput="projUpd('title',this.value)">
+        </div>
+        <div class="field"><label>System / Node Name</label>
+          <input id="p-system" placeholder="e.g. High Pressure Separator V-101" oninput="projUpd('systemName',this.value)">
+        </div>
+        <div class="field"><label>Facilitator</label>
+          <input id="p-facilitator" placeholder="Name" oninput="projUpd('facilitator',this.value)">
+        </div>
+        <div class="field"><label>Study Date</label>
+          <input type="date" id="p-date" oninput="projUpd('date',this.value)">
+        </div>
+        <div class="field"><label>Revision</label>
+          <input id="p-rev" value="0" style="max-width:100px" oninput="projUpd('revision',this.value)">
+        </div>
+        <div class="field"><label>Project Phase</label>
+          <select id="p-phase" onchange="projUpd('phase',this.value)">
+            <option>Concept / HAZID-1</option>
+            <option selected>FEED / HAZID-2</option>
+            <option>Detailed Design</option>
+            <option>Procurement</option>
+            <option>Construction</option>
+            <option>Pre-Commissioning</option>
+            <option>Operations</option>
+            <option>Decommissioning</option>
+          </select>
+        </div>
+        <div class="field form-full"><label>System Description <span class="req">*</span></label>
+          <textarea id="p-desc" rows="4"
+            placeholder="Describe the system in detail: equipment type, fluids handled, operating purpose, key components, upstream/downstream interfaces…
+The AI uses this to generate specific, realistic hazard scenarios across all three study types."
+            oninput="projUpd('description',this.value)"></textarea>
+        </div>
+        <div class="field form-full"><label>Process Conditions</label>
+          <input id="p-cond" placeholder="e.g. Gas-condensate, 65 bara, 120 °C; H₂S up to 2 mol%; crude oil 50,000 BPD; sour service"
+            oninput="projUpd('conditions',this.value)">
+        </div>
+        <div class="field form-full"><label>Study Scope &amp; Boundaries</label>
+          <textarea id="p-scope" rows="2" placeholder="What is in scope? What is excluded?"
+            oninput="projUpd('scope',this.value)"></textarea>
+        </div>
+      </div>
+      <div class="info-box">
+        💡 <strong>Getting started:</strong> Fill in the System Description and Process Conditions — the AI uses these
+        to generate specific hazard scenarios. Then switch to any study tab and click <em>Generate with AI</em>.
+        All data auto-saves to your browser's local storage between sessions.
+      </div>
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-nav" onclick="switchTab('hazid')">Go to HAZID →</button>
+        <button class="btn btn-out" onclick="clearAllData()" style="margin-left:auto">🗑 Clear All Data</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── HAZID ──────────────────────────────────────────────── -->
+  <div class="panel" id="panel-hazid">
+    <div class="card">
+      <div class="ai-bar amber">
+        <div style="flex:1">
+          <div class="ai-label amber">🪄 AI-Assisted HAZID Generation</div>
+          <div class="ai-hint">Consequence-driven scenarios (Crawley matrix): Effect → Cause → Consequence. All cells are directly editable.</div>
+          <div class="ai-err" id="hazid-err" style="display:none"></div>
+        </div>
+        <button class="btn btn-amber" id="btn-gen-hazid" onclick="generateHazid()">🪄 Generate with AI</button>
+      </div>
+      <div class="legend">
+        <strong>Risk = S × L &nbsp;</strong>
+        <span class="legend-item"><span class="risk risk-l" style="min-width:auto;padding:2px 6px">1–3</span> Low</span>
+        <span class="legend-item"><span class="risk risk-m" style="min-width:auto;padding:2px 6px">4–7</span> Medium</span>
+        <span class="legend-item"><span class="risk risk-mh" style="min-width:auto;padding:2px 6px">8–14</span> Med-High</span>
+        <span class="legend-item"><span class="risk risk-h" style="min-width:auto;padding:2px 6px">15–25</span> High</span>
+        <span class="legend-note">S: 1 = Minor → 5 = Catastrophic &nbsp;&nbsp; L: 1 = Very Rare → 5 = Frequent</span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th class="ah" style="min-width:38px">Ref</th>
+            <th class="ah" style="min-width:85px">Area</th>
+            <th class="ah" style="min-width:95px">Effect</th>
+            <th class="ah" style="min-width:110px">Cause</th>
+            <th class="ah" style="min-width:120px">Consequence</th>
+            <th class="ah" style="min-width:110px">Mitigations</th>
+            <th class="ah" style="min-width:120px">Scenario</th>
+            <th class="ah" style="min-width:36px">S</th>
+            <th class="ah" style="min-width:36px">L</th>
+            <th class="ah" style="min-width:66px">Risk</th>
+            <th class="ah" style="min-width:120px">Actions</th>
+            <th class="ah" style="min-width:80px">Assignee</th>
+            <th class="ah" style="min-width:28px"></th>
+          </tr></thead>
+          <tbody id="hazid-body">
+            <tr class="empty-row"><td colspan="13">No entries yet — click <em>Generate with AI</em> or <em>Add Row</em> below.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <button class="btn-add" onclick="addHazidRow()">＋ Add Row Manually</button>
+      <div class="export-bar" id="hazid-export" style="display:none">
+        <span class="export-lbl">Export:</span>
+        <button class="btn btn-out" onclick="exportHazidCSV()">CSV</button>
+        <button class="btn btn-out" onclick="exportHazidJSON()">JSON</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── WHAT-IF ────────────────────────────────────────────── -->
+  <div class="panel" id="panel-whatif">
+    <div class="card">
+      <div class="ai-bar blue">
+        <div style="flex:1">
+          <div class="ai-label blue">🪄 AI-Assisted What-If Generation</div>
+          <div class="ai-hint">CCPS brainstorming methodology: flow, pressure, temperature, equipment failure, utilities, human error.</div>
+          <div class="ai-err" id="whatif-err" style="display:none"></div>
+        </div>
+        <button class="btn btn-blue" id="btn-gen-whatif" onclick="generateWhatif()">🪄 Generate with AI</button>
+      </div>
+      <div class="legend">
+        <strong>RR = S × L &nbsp;</strong>
+        <span class="legend-item"><span class="risk risk-l" style="min-width:auto;padding:2px 6px">1–3</span> Low</span>
+        <span class="legend-item"><span class="risk risk-m" style="min-width:auto;padding:2px 6px">4–7</span> Medium</span>
+        <span class="legend-item"><span class="risk risk-mh" style="min-width:auto;padding:2px 6px">8–14</span> Med-High</span>
+        <span class="legend-item"><span class="risk risk-h" style="min-width:auto;padding:2px 6px">15–25</span> High</span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th class="bh" style="min-width:38px">Ref</th>
+            <th class="bh" style="min-width:145px">What If…?</th>
+            <th class="bh" style="min-width:115px">Causes</th>
+            <th class="bh" style="min-width:125px">Consequences</th>
+            <th class="bh" style="min-width:36px">S</th>
+            <th class="bh" style="min-width:36px">L</th>
+            <th class="bh" style="min-width:66px">RR</th>
+            <th class="bh" style="min-width:110px">Safeguards</th>
+            <th class="bh" style="min-width:130px">Recommendations</th>
+            <th class="bh" style="min-width:85px">Responsibility</th>
+            <th class="bh" style="min-width:28px"></th>
+          </tr></thead>
+          <tbody id="whatif-body">
+            <tr class="empty-row"><td colspan="11">No entries yet — click <em>Generate with AI</em> or <em>Add Row</em> below.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <button class="btn-add" onclick="addWhatifRow()">＋ Add Row Manually</button>
+      <div class="export-bar" id="whatif-export" style="display:none">
+        <span class="export-lbl">Export:</span>
+        <button class="btn btn-out" onclick="exportWhatifCSV()">CSV</button>
+        <button class="btn btn-out" onclick="exportWhatifJSON()">JSON</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CHECKLIST ──────────────────────────────────────────── -->
+  <div class="panel" id="panel-checklist">
+    <div class="card">
+      <div class="ai-bar green">
+        <div style="flex:1">
+          <div class="ai-label green">🪄 AI-Assisted Checklist Generation</div>
+          <div class="ai-hint">9-category compliance checklist: fire, pressure, I&amp;C, emergency systems, procedures, and more. Click pills to filter.</div>
+          <div class="ai-err" id="checklist-err" style="display:none"></div>
+        </div>
+        <button class="btn btn-green" id="btn-gen-checklist" onclick="generateChecklist()">🪄 Generate with AI</button>
+      </div>
+      <div id="cl-stats" class="cl-stats"></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th class="gh" style="min-width:38px">Ref</th>
+            <th class="gh" style="min-width:115px">Category</th>
+            <th class="gh" style="min-width:280px">Checklist Item</th>
+            <th class="gh" style="min-width:100px">Response</th>
+            <th class="gh" style="min-width:140px">Comment / Evidence</th>
+            <th class="gh" style="min-width:140px">Action Required</th>
+            <th class="gh" style="min-width:28px"></th>
+          </tr></thead>
+          <tbody id="checklist-body">
+            <tr class="empty-row"><td colspan="7">No items yet — click <em>Generate with AI</em> or <em>Add Item</em> below.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <button class="btn-add" onclick="addChecklistRow()">＋ Add Item Manually</button>
+      <div class="export-bar" id="cl-export" style="display:none">
+        <span class="export-lbl">Export:</span>
+        <button class="btn btn-out" onclick="exportClCSV()">CSV</button>
+        <button class="btn btn-out" onclick="exportClJSON()">JSON</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ══ FOOTER ══════════════════════════════════════════════════ -->
+<footer>
+  PHA Studio · AI-powered process hazard analysis for oil &amp; gas and process industries ·
+  Methodology: Crawley HAZID (1987/1995) · CCPS What-If (1992/2008) · Scott-Crawley Checklist (1992)
+</footer>
+
+<!-- ══ API KEY MODAL ═══════════════════════════════════════════ -->
+<div class="overlay" id="key-overlay" onclick="hideKeyModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">🔑 Anthropic API Key</div>
+    <div class="modal-sub">
+      PHA Studio calls the Anthropic Claude API to generate hazard scenarios.
+      Get your key at <a href="https://console.anthropic.com" target="_blank" rel="noreferrer">console.anthropic.com</a>.
+      The key is stored only in your browser's local storage and sent only to Anthropic's servers.
+    </div>
+    <div class="modal-warn">
+      ⚠ Keep your API key confidential. For shared / multi-user deployments, proxy
+      API calls through a backend to avoid exposing the key in the browser.
+    </div>
+    <div class="field">
+      <label>API Key</label>
+      <input type="password" id="key-input" placeholder="sk-ant-api03-…">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-out" onclick="hideKeyModal()">Cancel</button>
+      <button class="btn btn-nav" onclick="saveApiKey()">Save Key</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SCRIPT ══════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ─── Constants ────────────────────────────────────────────────
+const API_URL = 'https://api.anthropic.com/v1/messages';
+const MODEL   = 'claude-sonnet-4-20250514';
+const LS      = { key:'pha_apikey', proj:'pha_project', hazid:'pha_hazid', whatif:'pha_whatif', cl:'pha_checklist' };
+
+// ─── State ────────────────────────────────────────────────────
+let apiKey = '';
+let project = { title:'', systemName:'', facilitator:'',
+  date: new Date().toISOString().split('T')[0],
+  revision:'0', phase:'FEED / HAZID-2',
+  description:'', conditions:'', scope:'' };
+let hazid     = [];
+let whatif    = [];
+let checklist = [];
+let clFilter  = 'all';
+
+// ─── Helpers ──────────────────────────────────────────────────
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function calcRR(s,l) { return (parseInt(s)||1)*(parseInt(l)||1); }
+function riskMeta(rr) {
+  const n=Number(rr)||0;
+  if(n>=15) return {label:'HIGH',     css:'risk-h'};
+  if(n>=8)  return {label:'MED-HIGH', css:'risk-mh'};
+  if(n>=4)  return {label:'MEDIUM',   css:'risk-m'};
+  if(n>0)   return {label:'LOW',      css:'risk-l'};
+  return            {label:'-',        css:'risk-n'};
+}
+function esc(s) {
+  return String(s||'')
+    .replace(/&/g,'&amp;').replace(/"/g,'&quot;')
+    .replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function sOpts(cur) {
+  return [1,2,3,4,5].map(n=>`<option${n==cur?' selected':''}>${n}</option>`).join('');
+}
+function respCss(v) { return {yes:'ry',no:'rn',partial:'rp',tbd:'rt',na:'ra'}[v]||'rt'; }
+
+// ─── Persistence ──────────────────────────────────────────────
+function loadState() {
+  try { const k = localStorage.getItem(LS.key);  if(k) apiKey = k; } catch{}
+  try { const p = localStorage.getItem(LS.proj); if(p) project = {...project,...JSON.parse(p)}; } catch{}
+  try { const h = localStorage.getItem(LS.hazid); if(h) hazid = JSON.parse(h); } catch{}
+  try { const w = localStorage.getItem(LS.whatif); if(w) whatif = JSON.parse(w); } catch{}
+  try { const c = localStorage.getItem(LS.cl);    if(c) checklist = JSON.parse(c); } catch{}
+}
+function saveState() {
+  try {
+    if(apiKey) localStorage.setItem(LS.key, apiKey);
+    localStorage.setItem(LS.proj,  JSON.stringify(project));
+    localStorage.setItem(LS.hazid, JSON.stringify(hazid));
+    localStorage.setItem(LS.whatif,JSON.stringify(whatif));
+    localStorage.setItem(LS.cl,    JSON.stringify(checklist));
+  } catch{}
+}
+
+// ─── Tab switching ────────────────────────────────────────────
+function switchTab(t) {
+  ['setup','hazid','whatif','checklist'].forEach(id => {
+    document.getElementById('tab-'+id).classList.toggle('active', id===t);
+    document.getElementById('panel-'+id).classList.toggle('active', id===t);
+    const tab = document.getElementById('tab-'+id);
+    ['hazid','whatif','checklist'].forEach(c => tab.classList.remove(c));
+    if(['hazid','whatif','checklist'].includes(id)) tab.classList.add(id);
+    if(id===t && ['hazid','whatif','checklist'].includes(id)) tab.classList.add('active');
+  });
+  // Restore colour class on active non-setup tab
+  if(t!=='setup') {
+    document.getElementById('tab-'+t).classList.add(t);
+  }
+}
+
+// ─── Header meta ──────────────────────────────────────────────
+function updateHeader() {
+  const m = document.getElementById('hdr-meta');
+  if(project.title||project.systemName) {
+    m.style.display='block';
+    m.innerHTML = `<strong>${esc(project.title||project.systemName)}</strong>${esc(project.systemName&&project.title?project.systemName:'')}${project.revision?' · Rev '+esc(project.revision):''}${project.date?' · '+project.date:''}`;
+  } else { m.style.display='none'; }
+  const btn = document.getElementById('btn-key');
+  btn.className = 'btn-key' + (apiKey?' ok':'');
+  btn.textContent = apiKey ? '🔑 API Key ✓' : '🔑 Set API Key';
+}
+
+// ─── Row count badges ─────────────────────────────────────────
+function updateBadges() {
+  [['hazid',hazid.length],['whatif',whatif.length],['checklist',checklist.length]].forEach(([id,n])=>{
+    const b = document.getElementById('badge-'+id);
+    b.textContent = n;
+    b.style.display = n>0?'inline-block':'none';
+  });
+}
+
+// ─── Project fields ───────────────────────────────────────────
+function projUpd(field, val) {
+  project[field] = val;
+  saveState();
+  updateHeader();
+}
+
+// ─── API call ─────────────────────────────────────────────────
+async function callClaude(sys, usr) {
+  if(!apiKey) throw new Error('No API key set. Click "Set API Key" in the top-right corner.');
+  const res = await fetch(API_URL, {
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-allow-browser':'true'
+    },
+    body: JSON.stringify({ model:MODEL, max_tokens:1000, system:sys,
+      messages:[{role:'user',content:usr}] })
+  });
+  if(!res.ok) {
+    const e = await res.json().catch(()=>({}));
+    throw new Error('Anthropic API: '+(e?.error?.message||'HTTP '+res.status));
+  }
+  const d = await res.json();
+  const raw = (d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+  const clean = raw.replace(/```json\s*/gi,'').replace(/```\s*/gi,'').trim();
+  try { return JSON.parse(clean); }
+  catch { throw new Error('AI returned unexpected format. Please try again.'); }
+}
+
+function setGenerating(btnId, errId, loading) {
+  const btn = document.getElementById(btnId);
+  const err = document.getElementById(errId);
+  err.style.display = 'none';
+  btn.disabled = loading;
+  btn.innerHTML = loading
+    ? '<span class="spin">⏳</span> Generating…'
+    : '🪄 Generate with AI';
+}
+function showErr(errId, msg) {
+  const el = document.getElementById(errId);
+  el.style.display = 'block';
+  el.textContent = '⚠ ' + msg;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HAZID
+// ═══════════════════════════════════════════════════════════════
+function blankHazid() {
+  return {id:uid(),ref:'',area:'',effect:'',cause:'',consequence:'',
+    mitigations:'',scenario:'',s:'2',l:'2',actions:'',assignee:''};
+}
+
+function hazidRowHTML(r) {
+  const rr = calcRR(r.s,r.l);
+  const {label,css} = riskMeta(rr);
+  return `<tr id="hr-${r.id}">
+    <td><input value="${esc(r.ref)}"         oninput="hazidUpd('${r.id}','ref',this.value)"></td>
+    <td><input value="${esc(r.area)}"        oninput="hazidUpd('${r.id}','area',this.value)"></td>
+    <td><input value="${esc(r.effect)}"      oninput="hazidUpd('${r.id}','effect',this.value)"></td>
+    <td><input value="${esc(r.cause)}"       oninput="hazidUpd('${r.id}','cause',this.value)"></td>
+    <td><input value="${esc(r.consequence)}" oninput="hazidUpd('${r.id}','consequence',this.value)"></td>
+    <td><input value="${esc(r.mitigations)}" oninput="hazidUpd('${r.id}','mitigations',this.value)"></td>
+    <td><input value="${esc(r.scenario)}"    oninput="hazidUpd('${r.id}','scenario',this.value)"></td>
+    <td style="text-align:center"><select onchange="hazidUpd('${r.id}','s',this.value);updateHazidRisk('${r.id}')">${sOpts(r.s)}</select></td>
+    <td style="text-align:center"><select onchange="hazidUpd('${r.id}','l',this.value);updateHazidRisk('${r.id}')">${sOpts(r.l)}</select></td>
+    <td style="text-align:center" id="risk-${r.id}"><span class="risk ${css}">${rr}<br><span style="font-size:9px;font-weight:400">${label}</span></span></td>
+    <td><input value="${esc(r.actions)}"     oninput="hazidUpd('${r.id}','actions',this.value)"></td>
+    <td><input value="${esc(r.assignee)}"    oninput="hazidUpd('${r.id}','assignee',this.value)"></td>
+    <td><button class="btn-del" onclick="delHazid('${r.id}')" title="Delete row">✕</button></td>
+  </tr>`;
+}
+
+function renderHazid() {
+  const tbody = document.getElementById('hazid-body');
+  if(!hazid.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="13">No entries yet — click <em>Generate with AI</em> or <em>Add Row</em> below.</td></tr>';
+  } else {
+    tbody.innerHTML = hazid.map(hazidRowHTML).join('');
+  }
+  document.getElementById('hazid-export').style.display = hazid.length ? 'flex' : 'none';
+  updateBadges();
+}
+
+function hazidUpd(id, field, val) {
+  const r = hazid.find(x=>x.id===id); if(r) r[field]=val; saveState();
+}
+function updateHazidRisk(id) {
+  const r = hazid.find(x=>x.id===id); if(!r) return;
+  const rr = calcRR(r.s,r.l);
+  const {label,css} = riskMeta(rr);
+  const cell = document.getElementById('risk-'+id);
+  if(cell) cell.innerHTML = `<span class="risk ${css}">${rr}<br><span style="font-size:9px;font-weight:400">${label}</span></span>`;
+}
+function addHazidRow() {
+  const r = blankHazid();
+  hazid.push(r); saveState();
+  const tbody = document.getElementById('hazid-body');
+  if(tbody.querySelector('.empty-row')) tbody.innerHTML = '';
+  tbody.insertAdjacentHTML('beforeend', hazidRowHTML(r));
+  document.getElementById('hazid-export').style.display = 'flex';
+  updateBadges();
+  document.getElementById('hr-'+r.id)?.querySelector('input')?.focus();
+}
+function delHazid(id) {
+  hazid = hazid.filter(r=>r.id!==id); saveState();
+  document.getElementById('hr-'+id)?.remove();
+  if(!hazid.length) {
+    document.getElementById('hazid-body').innerHTML =
+      '<tr class="empty-row"><td colspan="13">No entries yet — click <em>Generate with AI</em> or <em>Add Row</em> below.</td></tr>';
+    document.getElementById('hazid-export').style.display='none';
+  }
+  updateBadges();
+}
+
+async function generateHazid() {
+  if(!project.description.trim()) { showErr('hazid-err','Please enter a System Description in Project Setup first.'); return; }
+  setGenerating('btn-gen-hazid','hazid-err',true);
+  const sys = `You are a certified Process Safety Engineer conducting a HAZID study following the Crawley consequence-driven methodology. Return ONLY a valid JSON array with NO markdown fences and NO explanation. Each object must have exactly these string keys: ref, area, effect, cause, consequence, mitigations, scenario, s (1-5), l (1-5), actions, assignee (job title). Assign realistic risk values; high-consequence events must score s≥4.`;
+  const usr = `System: ${project.systemName||'Process System'}\nDescription: ${project.description}\nConditions: ${project.conditions||'Not specified'}\nPhase: ${project.phase}\n\nGenerate exactly 8 HAZID entries covering: fire/explosion, toxic release, loss of containment, structural/mechanical damage, utility failure, dropped objects/impact, escalation to adjacent equipment, emergency response impairment. Be specific — no placeholder text.`;
+  try {
+    const items = await callClaude(sys, usr);
+    hazid = items.map(i=>({...blankHazid(),...i,id:uid()}));
+    saveState(); renderHazid();
+  } catch(e) { showErr('hazid-err', e.message); }
+  setGenerating('btn-gen-hazid','hazid-err',false);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WHAT-IF
+// ═══════════════════════════════════════════════════════════════
+function blankWhatif() {
+  return {id:uid(),ref:'',whatIf:'',causes:'',consequences:'',
+    s:'2',l:'2',safeguards:'',recommendations:'',responsibility:''};
+}
+
+function whatifRowHTML(r) {
+  const rr = calcRR(r.s,r.l);
+  const {label,css} = riskMeta(rr);
+  return `<tr id="wr-${r.id}">
+    <td><input value="${esc(r.ref)}"              oninput="wiUpd('${r.id}','ref',this.value)"></td>
+    <td><input value="${esc(r.whatIf)}"           oninput="wiUpd('${r.id}','whatIf',this.value)"></td>
+    <td><input value="${esc(r.causes)}"           oninput="wiUpd('${r.id}','causes',this.value)"></td>
+    <td><input value="${esc(r.consequences)}"     oninput="wiUpd('${r.id}','consequences',this.value)"></td>
+    <td style="text-align:center"><select onchange="wiUpd('${r.id}','s',this.value);updateWIRisk('${r.id}')">${sOpts(r.s)}</select></td>
+    <td style="text-align:center"><select onchange="wiUpd('${r.id}','l',this.value);updateWIRisk('${r.id}')">${sOpts(r.l)}</select></td>
+    <td style="text-align:center" id="wirisk-${r.id}"><span class="risk ${css}">${rr}<br><span style="font-size:9px;font-weight:400">${label}</span></span></td>
+    <td><input value="${esc(r.safeguards)}"       oninput="wiUpd('${r.id}','safeguards',this.value)"></td>
+    <td><input value="${esc(r.recommendations)}"  oninput="wiUpd('${r.id}','recommendations',this.value)"></td>
+    <td><input value="${esc(r.responsibility)}"   oninput="wiUpd('${r.id}','responsibility',this.value)"></td>
+    <td><button class="btn-del" onclick="delWhatif('${r.id}')" title="Delete row">✕</button></td>
+  </tr>`;
+}
+
+function renderWhatif() {
+  const tbody = document.getElementById('whatif-body');
+  if(!whatif.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="11">No entries yet — click <em>Generate with AI</em> or <em>Add Row</em> below.</td></tr>';
+  } else {
+    tbody.innerHTML = whatif.map(whatifRowHTML).join('');
+  }
+  document.getElementById('whatif-export').style.display = whatif.length ? 'flex' : 'none';
+  updateBadges();
+}
+
+function wiUpd(id, field, val) { const r=whatif.find(x=>x.id===id);if(r)r[field]=val;saveState(); }
+function updateWIRisk(id) {
+  const r=whatif.find(x=>x.id===id);if(!r)return;
+  const rr=calcRR(r.s,r.l);const{label,css}=riskMeta(rr);
+  const cell=document.getElementById('wirisk-'+id);
+  if(cell) cell.innerHTML=`<span class="risk ${css}">${rr}<br><span style="font-size:9px;font-weight:400">${label}</span></span>`;
+}
+function addWhatifRow() {
+  const r=blankWhatif();whatif.push(r);saveState();
+  const tbody=document.getElementById('whatif-body');
+  if(tbody.querySelector('.empty-row'))tbody.innerHTML='';
+  tbody.insertAdjacentHTML('beforeend',whatifRowHTML(r));
+  document.getElementById('whatif-export').style.display='flex';
+  updateBadges();
+  document.getElementById('wr-'+r.id)?.querySelector('input')?.focus();
+}
+function delWhatif(id) {
+  whatif=whatif.filter(r=>r.id!==id);saveState();
+  document.getElementById('wr-'+id)?.remove();
+  if(!whatif.length){
+    document.getElementById('whatif-body').innerHTML='<tr class="empty-row"><td colspan="11">No entries yet — click <em>Generate with AI</em> or <em>Add Row</em> below.</td></tr>';
+    document.getElementById('whatif-export').style.display='none';
+  }
+  updateBadges();
+}
+
+async function generateWhatif() {
+  if(!project.description.trim()){showErr('whatif-err','Please enter a System Description in Project Setup first.');return;}
+  setGenerating('btn-gen-whatif','whatif-err',true);
+  const sys=`You are a process safety expert running a What-If analysis using the CCPS brainstorming methodology. Return ONLY a valid JSON array with NO markdown fences. Each object must have exactly these string keys: ref, whatIf (must start with "What if"), causes, consequences, s (1-5), l (1-5), safeguards, recommendations, responsibility (job title).`;
+  const usr=`System: ${project.systemName||'Process System'}\nDescription: ${project.description}\nConditions: ${project.conditions||'Not specified'}\n\nGenerate exactly 8 What-If entries covering: no/low flow, high/excess flow, high pressure excursion, low pressure/vacuum, high temperature, low temperature/cold embrittlement, equipment/valve failure, utility loss. Be specific to this system — no placeholder text.`;
+  try {
+    const items=await callClaude(sys,usr);
+    whatif=items.map(i=>({...blankWhatif(),...i,id:uid()}));
+    saveState();renderWhatif();
+  } catch(e){showErr('whatif-err',e.message);}
+  setGenerating('btn-gen-whatif','whatif-err',false);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CHECKLIST
+// ═══════════════════════════════════════════════════════════════
+function blankChecklist() {
+  return {id:uid(),ref:'',category:'',item:'',response:'tbd',comment:'',action:''};
+}
+
+function clRowHTML(r) {
+  const css=respCss(r.response);
+  return `<tr id="clr-${r.id}">
+    <td><input value="${esc(r.ref)}"      oninput="clUpd('${r.id}','ref',this.value)"></td>
+    <td><input value="${esc(r.category)}" oninput="clUpd('${r.id}','category',this.value)"></td>
+    <td style="font-weight:500"><input value="${esc(r.item)}" oninput="clUpd('${r.id}','item',this.value)"></td>
+    <td><select class="${css}" onchange="clUpd('${r.id}','response',this.value);updateClStats()">
+      <option value="tbd"${r.response==='tbd'?' selected':''}>TBD</option>
+      <option value="yes"${r.response==='yes'?' selected':''}>✓ Yes</option>
+      <option value="no"${r.response==='no'?' selected':''}>✗ No</option>
+      <option value="partial"${r.response==='partial'?' selected':''}>~ Partial</option>
+      <option value="na"${r.response==='na'?' selected':''}>N/A</option>
+    </select></td>
+    <td><input value="${esc(r.comment)}" placeholder="Evidence / notes…" oninput="clUpd('${r.id}','comment',this.value)"></td>
+    <td><input value="${esc(r.action)}"  placeholder="Owner / action…"   oninput="clUpd('${r.id}','action',this.value)"></td>
+    <td><button class="btn-del" onclick="delChecklist('${r.id}')" title="Delete item">✕</button></td>
+  </tr>`;
+}
+
+function renderChecklist() {
+  const rows = clFilter==='all' ? checklist : checklist.filter(r=>r.response===clFilter);
+  const tbody = document.getElementById('checklist-body');
+  if(!rows.length) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="7">${checklist.length?'No items match the selected filter.':'No items yet — click <em>Generate with AI</em> or <em>Add Item</em> below.'}</td></tr>`;
+  } else {
+    tbody.innerHTML = rows.map(clRowHTML).join('');
+  }
+  document.getElementById('cl-export').style.display = checklist.length?'flex':'none';
+  updateClStats();
+  updateBadges();
+}
+
+function updateClStats() {
+  const bar=document.getElementById('cl-stats');
+  if(!checklist.length){bar.innerHTML='';return;}
+  const c={yes:0,no:0,partial:0,tbd:0,na:0};
+  checklist.forEach(r=>{if(c[r.response]!==undefined)c[r.response]++;});
+  const defs=[
+    ['yes','Compliant','cl-yes'],['no','Non-Compliant','cl-no'],
+    ['partial','Partial','cl-partial'],['tbd','TBD','cl-tbd'],['na','N/A','cl-na']
+  ];
+  bar.innerHTML=defs.map(([k,lbl,css])=>
+    `<button class="cl-pill ${css}${clFilter===k?' af':''}" onclick="toggleClFilter('${k}')" title="Filter: ${lbl}">
+      <strong>${c[k]}</strong> ${lbl}
+    </button>`
+  ).join('');
+}
+function toggleClFilter(k) { clFilter=clFilter===k?'all':k; renderChecklist(); }
+
+function clUpd(id, field, val) {
+  const r=checklist.find(x=>x.id===id);if(r)r[field]=val;saveState();
+  if(field==='response'){
+    // Update select CSS class without full re-render
+    const sel=document.querySelector(`#clr-${id} select`);
+    if(sel)sel.className=respCss(val);
+    updateClStats();
+  }
+}
+function addChecklistRow() {
+  const r=blankChecklist();checklist.push(r);saveState();
+  const tbody=document.getElementById('checklist-body');
+  if(tbody.querySelector('.empty-row'))tbody.innerHTML='';
+  tbody.insertAdjacentHTML('beforeend',clRowHTML(r));
+  document.getElementById('cl-export').style.display='flex';
+  updateBadges();updateClStats();
+  document.getElementById('clr-'+r.id)?.querySelector('input')?.focus();
+}
+function delChecklist(id) {
+  checklist=checklist.filter(r=>r.id!==id);saveState();
+  document.getElementById('clr-'+id)?.remove();
+  if(!checklist.length){
+    document.getElementById('checklist-body').innerHTML='<tr class="empty-row"><td colspan="7">No items yet — click <em>Generate with AI</em> or <em>Add Item</em> below.</td></tr>';
+    document.getElementById('cl-export').style.display='none';
+  }
+  updateBadges();updateClStats();
+}
+
+async function generateChecklist() {
+  if(!project.description.trim()){showErr('checklist-err','Please enter a System Description in Project Setup first.');return;}
+  setGenerating('btn-gen-checklist','checklist-err',true);
+  const sys=`You are a process safety auditor creating a PHA compliance checklist following the CCPS and Scott-Crawley framework. Return ONLY a valid JSON array with NO markdown fences. Each object must have exactly these string keys: ref, category, item (a direct yes/no compliance question), response ("tbd"), comment (""), action (""). Use categories from: Fire & Explosion Protection, Loss of Containment Controls, Pressure System Integrity, Instrumentation & Control, Emergency & Safety Systems, Personnel Safety, Environmental Safeguards, Utilities & Services, Procedures & Training.`;
+  const usr=`System: ${project.systemName||'Process System'}\nDescription: ${project.description}\nConditions: ${project.conditions||'Not specified'}\n\nGenerate exactly 12 checklist items across at least 5 categories. Items must be specific and answerable Yes/No for this system type. Base on IEC 61511 / CCPS / IChemE good practice.`;
+  try {
+    const items=await callClaude(sys,usr);
+    checklist=items.map(i=>({...blankChecklist(),...i,id:uid()}));
+    clFilter='all';saveState();renderChecklist();
+  } catch(e){showErr('checklist-err',e.message);}
+  setGenerating('btn-gen-checklist','checklist-err',false);
+}
+
+// ─── Export ───────────────────────────────────────────────────
+function dlBlob(content, filename, mime) {
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([content],{type:mime}));
+  a.download=filename;a.click();URL.revokeObjectURL(a.href);
+}
+function toCSV(rows, keys) {
+  const lines=[keys.filter(k=>k!=='id').join(',')];
+  rows.forEach(r=>lines.push(keys.filter(k=>k!=='id').map(k=>`"${String(r[k]||'').replace(/"/g,'""')}"`).join(',')));
+  return lines.join('\n');
+}
+const sysName=()=>project.systemName.replace(/[^a-z0-9]/gi,'_')||'System';
+function exportHazidCSV()  { dlBlob(toCSV(hazid,Object.keys(blankHazid())),`HAZID_${sysName()}.csv`,'text/csv'); }
+function exportHazidJSON() { dlBlob(JSON.stringify(hazid,null,2),`HAZID_${sysName()}.json`,'application/json'); }
+function exportWhatifCSV() { dlBlob(toCSV(whatif,Object.keys(blankWhatif())),`WhatIf_${sysName()}.csv`,'text/csv'); }
+function exportWhatifJSON(){ dlBlob(JSON.stringify(whatif,null,2),`WhatIf_${sysName()}.json`,'application/json'); }
+function exportClCSV()     { dlBlob(toCSV(checklist,Object.keys(blankChecklist())),`Checklist_${sysName()}.csv`,'text/csv'); }
+function exportClJSON()    { dlBlob(JSON.stringify(checklist,null,2),`Checklist_${sysName()}.json`,'application/json'); }
+
+// ─── Clear all data ───────────────────────────────────────────
+function clearAllData() {
+  if(!confirm('Clear ALL study data and project info? This cannot be undone.')) return;
+  hazid=[];whatif=[];checklist=[];
+  project={title:'',systemName:'',facilitator:'',
+    date:new Date().toISOString().split('T')[0],revision:'0',
+    phase:'FEED / HAZID-2',description:'',conditions:'',scope:''};
+  saveState();
+  // Reset form fields
+  ['title','system','facilitator','rev','cond'].forEach(f=>{
+    const el=document.getElementById('p-'+f);if(el)el.value='';});
+  document.getElementById('p-desc').value='';
+  document.getElementById('p-scope').value='';
+  document.getElementById('p-date').value=project.date;
+  renderHazid();renderWhatif();renderChecklist();
+  updateHeader();updateBadges();
+}
+
+// ─── API Key modal ────────────────────────────────────────────
+function showKeyModal() {
+  document.getElementById('key-input').value=apiKey;
+  document.getElementById('key-overlay').classList.add('open');
+  setTimeout(()=>document.getElementById('key-input').focus(),50);
+}
+function hideKeyModal(e) {
+  if(e&&e.target!==document.getElementById('key-overlay'))return;
+  document.getElementById('key-overlay').classList.remove('open');
+}
+function saveApiKey() {
+  const val=document.getElementById('key-input').value.trim();
+  apiKey=val;saveState();updateHeader();
+  document.getElementById('key-overlay').classList.remove('open');
+}
+document.getElementById('key-input').addEventListener('keydown',e=>{
+  if(e.key==='Enter')saveApiKey();
+  if(e.key==='Escape')document.getElementById('key-overlay').classList.remove('open');
+});
+
+// ─── Init ─────────────────────────────────────────────────────
+function init() {
+  loadState();
+  // Populate project form
+  const fields={title:'p-title',systemName:'p-system',facilitator:'p-facilitator',
+    date:'p-date',revision:'p-rev',conditions:'p-cond'};
+  Object.entries(fields).forEach(([k,id])=>{
+    const el=document.getElementById(id);if(el)el.value=project[k]||'';
+  });
+  document.getElementById('p-desc').value=project.description||'';
+  document.getElementById('p-scope').value=project.scope||'';
+  document.getElementById('p-phase').value=project.phase||'FEED / HAZID-2';
+  // Render tables
+  renderHazid();renderWhatif();renderChecklist();
+  updateHeader();updateBadges();
+}
+
+init();
+</script>
+</body>
+</html>
