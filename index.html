@@ -259,6 +259,7 @@ textarea{resize:vertical;min-height:72px}
   <div class="ai-header-badge">✦ AI Facilitated</div>
   <div class="proj-badge" id="projBadge">No project loaded — visit Setup tab</div>
   <div class="save-ind"><div class="save-dot" id="saveDot"></div><span id="saveText">Auto-save</span></div>
+  <button id="keyBtn" onclick="showKeyModal()" style="display:flex;align-items:center;gap:5px;padding:5px 13px;background:var(--navy3);border:1.5px solid var(--navy4);border-radius:100px;color:var(--g300);font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;transition:all .15s">🔑 Set API Key</button>
   <button class="ai-fab" onclick="toggleAIPanel()">✦ AI Facilitator</button>
 </header>
 
@@ -290,10 +291,7 @@ textarea{resize:vertical;min-height:72px}
         <div class="fg"><label>Scribe / Recorder</label><input id="scribe" placeholder="Name of scribe" oninput="saveData()"></div>
         <div class="fg full" style="grid-column:1/-1">
           <label>Scope & Objectives</label>
-          <div class="field-row">
-            <textarea id="scope" placeholder="Describe the scope, objectives and study boundaries..." rows="3" oninput="saveData()"></textarea>
-            <button class="ai-btn-inline" onclick="aiDraftScope(this)" title="AI will draft scope based on project name, location and node">✦ AI Draft</button>
-          </div>
+          <textarea id="scope" placeholder="Describe the scope, objectives and study boundaries..." rows="3" oninput="saveData()"></textarea>
         </div>
         <div class="fg full" style="grid-column:1/-1">
           <label>Study Node / System Description</label>
@@ -450,6 +448,28 @@ textarea{resize:vertical;min-height:72px}
 </main>
 
 <!-- AI PANEL -->
+
+
+<!-- API KEY MODAL -->
+<div id="keyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;align-items:center;justify-content:center">
+  <div style="background:white;border-radius:14px;padding:28px;width:440px;max-width:95vw;box-shadow:0 20px 40px rgba(0,0,0,.2)">
+    <h3 style="font-size:17px;font-weight:800;color:#0a0e1c;margin-bottom:8px">🔑 Anthropic API Key</h3>
+    <p style="font-size:13px;color:#64748b;line-height:1.65;margin-bottom:16px">
+      Risk2Safe uses the Claude API for all AI features. Paste your personal Anthropic API key below.<br><br>
+      🔒 <strong>Your key stays on your device</strong> — saved only in your browser's local storage and sent directly to Anthropic. No backend, no server, no sharing.
+      <br><br>Don't have a key? Get one free at <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#7c3aed;font-weight:600">console.anthropic.com → API Keys</a>
+    </p>
+    <input type="password" id="keyInput" placeholder="sk-ant-api03-…" autocomplete="off"
+      style="width:100%;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:14px;box-sizing:border-box"
+      onkeydown="if(event.key==='Enter')saveKey()">
+    <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
+      <button onclick="clearKey()" style="padding:7px 14px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-right:auto;font-family:inherit">Clear Key</button>
+      <button onclick="document.getElementById('keyModal').style.display='none'" style="padding:7px 14px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="saveKey()" style="padding:7px 16px;background:#f59e0b;color:#0a0e1c;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Save Key</button>
+    </div>
+  </div>
+</div>
+
 <div class="ai-overlay" id="aiOverlay" onclick="toggleAIPanel()"></div>
 <div class="ai-panel" id="aiPanel">
   <div class="aip-header">
@@ -555,9 +575,12 @@ let nextId=1;
 document.addEventListener('DOMContentLoaded',()=>{
   loadStorage();
   renderCats();renderWS();renderMatrix();renderSummary();renderVideos();
-  updateBadges();updateProjBadge();
+  updateBadges();updateProjBadge();updKeyBtn();
   document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
-  document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();exportJSON();}});
+  document.addEventListener('keydown',e=>{
+    if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();exportJSON();}
+    if(e.key==='Escape')closeSettings();
+  });
   setInterval(saveData,30000);
 });
 
@@ -610,7 +633,7 @@ function updCatSum(){
 // ═══════════════ WORKSHEET ═══════════════
 function addScenario(data={}){
   const id=`S${String(nextId++).padStart(3,'0')}`;
-  ST.scenarios.push({id,category:'',description:'',causes:'',iSev:'',iLik:'',preventCtrl:'',mitigCtrl:'',adminCtrl:'',rSev:'',rLik:'',accept:'',reco:'',resp:'',due:'',created:new Date().toISOString(),...data});
+  ST.scenarios.push({id,category:'',description:'',causes:'',consequences:'',iSev:'',iLik:'',preventCtrl:'',mitigCtrl:'',adminCtrl:'',rSev:'',rLik:'',accept:'',reco:'',resp:'',due:'',created:new Date().toISOString(),...data});
   renderWS();updateBadges();saveData();
   setTimeout(()=>{const el=document.getElementById(`sc_${id}`);if(el){el.classList.add('exp');el.scrollIntoView({behavior:'smooth',block:'center'});}},60);
 }
@@ -664,6 +687,14 @@ function scHTML(s,n){
         <textarea placeholder="Root causes, deviations or guidewords..." rows="2"
           id="causes_${s.id}" onchange="updSC('${s.id}','causes',this.value)">${s.causes}</textarea>
         <button class="ai-btn-inline" onclick="aiSuggestCauses('${s.id}',this)" title="AI suggests causes for this scenario">✦ Causes</button>
+      </div>
+    </div>
+    <div class="fg">
+      <label>Consequences</label>
+      <div class="field-row">
+        <textarea placeholder="What would happen if this hazard is not controlled? (injuries, fatalities, asset damage, environmental impact, reputational harm...)" rows="2"
+          id="cons_${s.id}" onchange="updSC('${s.id}','consequences',this.value)">${s.consequences||''}</textarea>
+        <button class="ai-btn-inline" onclick="aiSuggestConsequences('${s.id}',this)" title="AI suggests consequences for this scenario">✦ Cons.</button>
       </div>
     </div>
 
@@ -903,22 +934,50 @@ const AI_SYSTEM=`You are an expert HAZID (Hazard Identification Study) facilitat
 Your role: assist the HAZID team by identifying hazards, assessing risks, developing effective control measures, and facilitating ALARP demonstration. Be concise, practical, and specific. Use industry-standard terminology. When suggesting risk ratings, justify your reasoning.`;
 
 async function callAI(userMsg){
-  const resp=await fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:AI_SYSTEM,messages:[{role:'user',content:userMsg}]})
-  });
-  if(!resp.ok)throw new Error(`API ${resp.status}`);
-  const d=await resp.json();return d.content[0].text;
+  const key=getApiKey();
+  if(!key){showKeyModal();throw new Error('No API key — click the 🔑 button in the header.');}
+  let resp;
+  try{
+    resp=await fetch(getEndpoint(),{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,system:AI_SYSTEM,messages:[{role:'user',content:userMsg}]})
+    });
+  }catch(netErr){
+    throw new Error(localStorage.getItem('r2s_proxy')?'Cannot reach proxy — check the URL in 🔑 Key settings.':'CORS/network error — set a Proxy URL in 🔑 Key settings (e.g. your Cloudflare Worker).');
+  }
+  if(!resp.ok){
+    let msg=`HTTP ${resp.status}`;
+    try{const e=await resp.json();msg=e.error?.message||msg;}catch{}
+    throw new Error(msg);
+  }
+  const d=await resp.json();
+  if(!d.content?.[0]?.text)throw new Error('Empty response from API');
+  return d.content[0].text;
 }
 
 async function callAIWithHistory(userMsg){
+  const key=getApiKey();
+  if(!key){showKeyModal();throw new Error('No API key — click the 🔑 button in the header.');}
   chatHistory.push({role:'user',content:userMsg});
-  const resp=await fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:AI_SYSTEM,messages:chatHistory})
-  });
-  if(!resp.ok)throw new Error(`API ${resp.status}`);
-  const d=await resp.json();const reply=d.content[0].text;
+  let resp;
+  try{
+    resp=await fetch(getEndpoint(),{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,system:AI_SYSTEM,messages:chatHistory})
+    });
+  }catch(netErr){
+    chatHistory.pop();
+    throw new Error(localStorage.getItem('r2s_proxy')?'Cannot reach proxy — check the URL in 🔑 Key settings.':'CORS/network error — set a Proxy URL in 🔑 Key settings (e.g. your Cloudflare Worker).');
+  }
+  if(!resp.ok){
+    chatHistory.pop();
+    let msg=`HTTP ${resp.status}`;
+    try{const e=await resp.json();msg=e.error?.message||msg;}catch{}
+    throw new Error(msg);
+  }
+  const d=await resp.json();const reply=d.content?.[0]?.text||'';
   chatHistory.push({role:'assistant',content:reply});return reply;
 }
 
@@ -936,7 +995,7 @@ async function sendAIChat(){
     const ctx=`Study context: ${projCtx()}\n\nUser question: ${msg}`;
     const reply=await callAIWithHistory(ctx);
     typing.remove();addChatMsg(reply,'ai');
-  }catch(e){typing.remove();addChatMsg('⚠ Connection error. Please try again.','ai');}
+  }catch(e){typing.remove();addChatMsg('⚠ '+(e.message||'Connection error')+'. Check your API key and internet connection.','ai');}
   btn.disabled=false;inp.focus();
 }
 function sendChip(msg){document.getElementById('aiChatInput').value=msg;sendAIChat();}
@@ -964,7 +1023,7 @@ async function aiDraftScope(btn){
   try{
     const txt=await callAI(`Write a concise HAZID study scope statement (3–4 sentences) for:\nProject: "${name}"\nLocation: "${loc||'not specified'}"\nSystem/Node: "${node||'not specified'}"\n\nInclude: purpose of study, key activities/systems in scope, study boundaries and exclusions. Use professional HSE language. No headings — plain paragraph only.`);
     document.getElementById('scope').value=txt.trim();saveData();notify('✦ Scope drafted by AI');
-  }catch(e){notify('⚠ AI error: '+e.message);}
+  }catch(e){notify('⚠ AI: '+(e.message||e),true);}
   btn.disabled=false;btn.innerHTML='✦ AI Draft';
 }
 
@@ -973,17 +1032,19 @@ async function aiRecommendCats(btn){
   const ctx=projCtx();
   if(!ST.setup.projectName){notify('⚠ Enter project details in Setup tab first');return;}
   btn.disabled=true;btn.innerHTML='<span class="spin">⟳</span> Analysing...';
-  const catList=ALL_CATS.map(c=>`${c.id}: ${c.lbl}`).join('\n');
+  const catList=ALL_CATS.map(c=>`${c.id}`).join(',');
   try{
-    const txt=await callAI(`Based on this project:\n${ctx}\n\nFrom the following hazard category IDs, identify which are APPLICABLE (select 8–14 most relevant). Consider the project type, location, activities and typical hazards.\n\nCategories:\n${catList}\n\nReturn ONLY a JSON array of applicable category IDs, e.g. ["TL01","PF01","PF02"]. No explanation, no markdown.`);
-    const clean=txt.replace(/```json|```/g,'').trim();
-    const ids=JSON.parse(clean);
-    if(!Array.isArray(ids))throw new Error('Not an array');
+    const txt=await callAI(`You are a HAZID facilitator. Based on this project:\n${ctx}\n\nSelect 8 to 14 applicable hazard category IDs from this list:\n${catList}\n\nRespond with ONLY a JSON array of strings. Example: ["TL01","PF01","PF02"]\nNo explanation. No markdown. No code fences. Only the JSON array.`);
+    // Robust extraction — find first [ ... ] block
+    const match=txt.match(/\[[\s\S]*?\]/);
+    if(!match)throw new Error('No array found in response');
+    const ids=JSON.parse(match[0]);
+    if(!Array.isArray(ids)||ids.length===0)throw new Error('Empty array');
     markAll('na');
     ids.forEach(id=>{if(ALL_CATS.find(c=>c.id===id))ST.cats[id]='applicable';});
     renderCats();updateBadges();saveData();
-    notify(`✦ AI recommended ${ids.length} applicable categories`);
-  }catch(e){notify('⚠ Could not parse AI response. Try again.');}
+    notify(`✦ AI recommended ${ids.filter(id=>ALL_CATS.find(c=>c.id===id)).length} applicable categories`);
+  }catch(e){notify('⚠ '+(e.message||e),true);}
   btn.disabled=false;btn.innerHTML='✦ AI Recommend Categories';
 }
 
@@ -991,20 +1052,18 @@ async function aiRecommendCats(btn){
 async function aiGenerateScenarios(btn){
   if(!ST.setup.projectName){notify('⚠ Fill in project details in Setup tab first');return;}
   btn.disabled=true;btn.innerHTML='<span class="spin">⟳</span> Generating...';
-  const applicable=ALL_CATS.filter(c=>ST.cats[c.id]==='applicable').map(c=>`${c.id}: ${c.lbl}`);
-  const catContext=applicable.length?`Applicable hazard categories:\n${applicable.join('\n')}`:`All available categories:\n${ALL_CATS.slice(0,15).map(c=>`${c.id}: ${c.lbl}`).join('\n')}`;
+  const applicable=ALL_CATS.filter(c=>ST.cats[c.id]==='applicable').map(c=>c.id);
+  const catIds=(applicable.length?applicable:ALL_CATS.slice(0,12).map(c=>c.id)).join(',');
   try{
-    const txt=await callAI(`You are facilitating a HAZID workshop for:\n${projCtx()}\n\n${catContext}\n\nGenerate 5 realistic, site-specific HAZID scenarios. Return ONLY a JSON array — no markdown, no explanation.\n\nEach item must have exactly these keys:\n{\n  "description": "specific scenario description (1 sentence)",\n  "category": "category ID from the list above",\n  "causes": "3-5 root causes separated by semicolons",\n  "iSev": <number 1-6>,\n  "iLik": "<letter A-F>"\n}\n\nBe specific to the project type and location. Vary severity and likelihood across scenarios.`);
-    const clean=txt.replace(/```json|```/g,'').trim();
-    const scenarios=JSON.parse(clean);
-    if(!Array.isArray(scenarios))throw new Error('Not an array');
-    scenarios.forEach(sc=>{
-      if(sc.description&&sc.iSev&&sc.iLik){
-        addScenario({description:sc.description,category:sc.category||'',causes:sc.causes||'',iSev:String(sc.iSev),iLik:sc.iLik});
-      }
-    });
-    notify(`✦ AI generated ${scenarios.length} scenarios`);
-  }catch(e){notify('⚠ Could not generate scenarios. Check project details and try again.');}
+    const txt=await callAI(`HAZID workshop for: ${projCtx()}\nCategory IDs available: ${catIds}\n\nGenerate 5 HAZID scenarios. Return ONLY a raw JSON array, no markdown, no explanation, no code fences.\nFormat: [{"description":"...","category":"<ID>","causes":"cause1; cause2","iSev":<1-6>,"iLik":"<A-F>"}]\nVary the severity and likelihood. Use real industry language.`);
+    const match=txt.match(/\[[\s\S]*\]/);
+    if(!match)throw new Error('No JSON array found in response');
+    const scenarios=JSON.parse(match[0]);
+    if(!Array.isArray(scenarios)||!scenarios.length)throw new Error('Empty result');
+    let added=0;
+    scenarios.forEach(sc=>{if(sc.description){addScenario({description:sc.description,category:sc.category||'',causes:sc.causes||'',iSev:String(sc.iSev||''),iLik:sc.iLik||''});added++;}});
+    notify(`✦ ${added} scenarios generated`);
+  }catch(e){notify('⚠ Generate: '+(e.message||e),true);}
   btn.disabled=false;btn.innerHTML='✦ AI Generate Scenarios';
 }
 
@@ -1013,14 +1072,34 @@ async function aiSuggestCauses(id,btn){
   const s=ST.scenarios.find(s=>s.id===id);if(!s)return;
   if(!s.description&&!s.category){notify('⚠ Enter a scenario description or category first');return;}
   btn.disabled=true;btn.innerHTML='<span class="spin">⟳</span>';
-  const catLbl=ALL_CATS.find(c=>c.id===s.category)?.lbl||s.category||'general hazard';
+  const catLbl=ALL_CATS.find(c=>c.id===s.category)?.lbl||'general hazard';
   try{
-    const txt=await callAI(`${projCtx()}\n\nHAZID Scenario: "${s.description||'not specified'}"\nHazard Category: ${catLbl}\n\nList 5–7 specific, realistic root causes or initiating guidewords for this scenario in the context of this facility/project. Separate with semicolons. Be concise and industry-specific. Return ONLY the causes — no intro, no numbering, no explanation.`);
+    const txt=await callAI(`Project: ${projCtx()}\nHAZID scenario: "${s.description||'not specified'}"\nCategory: ${catLbl}\n\nList 5 to 7 specific root causes or guidewords. Return ONLY the causes as plain text separated by semicolons. No numbering, no bullets, no intro, no explanation.`);
     const el=document.getElementById(`causes_${id}`);
     if(el){el.value=txt.trim();updSC(id,'causes',txt.trim());}
-    notify('✦ Causes suggested by AI');
-  }catch(e){notify('⚠ AI error: '+e.message);}
+    notify('✦ Causes suggested');
+  }catch(e){notify('⚠ Causes: '+(e.message||e),true);}
   btn.disabled=false;btn.innerHTML='✦ Causes';
+}
+
+// ═══ AI SUGGEST CONSEQUENCES ═══
+async function aiSuggestConsequences(id,btn){
+  const s=ST.scenarios.find(s=>s.id===id);if(!s)return;
+  if(!s.description&&!s.category){notify('⚠ Enter a scenario description or category first');return;}
+  btn.disabled=true;btn.innerHTML='<span class="spin">⟳</span>';
+  const catLbl=ALL_CATS.find(c=>c.id===s.category)?.lbl||'general hazard';
+  try{
+    const txt=await callAI(`Project: ${projCtx()}
+HAZID scenario: "${s.description||'not specified'}"
+Category: ${catLbl}
+Causes: ${s.causes||'not specified'}
+
+Describe 3 to 5 potential consequences if this hazard is not controlled. Cover: injuries/fatalities, asset damage, environmental impact, and reputational/legal consequences. Return plain text only — no headings, no bullets, use semicolons between consequences.`);
+    const el=document.getElementById(`cons_${id}`);
+    if(el){el.value=txt.trim();updSC(id,'consequences',txt.trim());}
+    notify('✦ Consequences suggested');
+  }catch(e){notify('⚠ Consequences: '+(e.message||e),true);}
+  btn.disabled=false;btn.innerHTML='✦ Cons.';
 }
 
 // ═══ AI SUGGEST CONTROLS ═══
@@ -1028,17 +1107,17 @@ async function aiSuggestControls(id,btn){
   const s=ST.scenarios.find(s=>s.id===id);if(!s)return;
   if(!s.description&&!s.category){notify('⚠ Enter a scenario description or category first');return;}
   btn.disabled=true;btn.innerHTML='<span class="spin">⟳</span> Generating controls...';
-  const catLbl=ALL_CATS.find(c=>c.id===s.category)?.lbl||s.category||'general hazard';
-  const sevLbl=SEVERITY.find(sv=>sv.id==s.iSev)?.lbl||'';const likLbl=LIKELIHOOD.find(l=>l.id===s.iLik)?.lbl||'';
+  const catLbl=ALL_CATS.find(c=>c.id===s.category)?.lbl||'general hazard';
   try{
-    const txt=await callAI(`${projCtx()}\n\nHAZID Scenario: "${s.description||'not specified'}"\nCategory: ${catLbl}\nInitial Risk: Severity ${s.iSev||'?'} (${sevLbl}) × Likelihood ${s.iLik||'?'} (${likLbl})\nCauses: ${s.causes||'not specified'}\n\nSuggest realistic, specific controls for this scenario. Return ONLY a JSON object — no markdown, no explanation:\n{\n  "preventCtrl": "3-4 specific preventative controls (engineering barriers, interlocks, design features) — semicolons between items",\n  "mitigCtrl": "3-4 specific mitigative/recovery controls (emergency systems, secondary containment) — semicolons between items",\n  "adminCtrl": "2-3 administrative controls (procedures, permits, training, inspections) — semicolons between items"\n}`);
-    const clean=txt.replace(/```json|```/g,'').trim();
-    const ctrl=JSON.parse(clean);
+    const txt=await callAI(`Project: ${projCtx()}\nHAZID scenario: "${s.description||'not specified'}"\nCategory: ${catLbl}\nCauses: ${s.causes||'not specified'}\n\nSuggest controls. Return ONLY a raw JSON object, no markdown, no code fences:\n{"preventCtrl":"control1; control2; control3","mitigCtrl":"control1; control2; control3","adminCtrl":"control1; control2"}`);
+    const match=txt.match(/\{[\s\S]*\}/);
+    if(!match)throw new Error('No JSON object in response');
+    const ctrl=JSON.parse(match[0]);
     if(ctrl.preventCtrl){const e=document.getElementById(`prev_${id}`);if(e){e.value=ctrl.preventCtrl;updSC(id,'preventCtrl',ctrl.preventCtrl);}}
     if(ctrl.mitigCtrl){const e=document.getElementById(`mitig_${id}`);if(e){e.value=ctrl.mitigCtrl;updSC(id,'mitigCtrl',ctrl.mitigCtrl);}}
     if(ctrl.adminCtrl){const e=document.getElementById(`admin_${id}`);if(e){e.value=ctrl.adminCtrl;updSC(id,'adminCtrl',ctrl.adminCtrl);}}
-    notify('✦ Controls for Steps 3–5 suggested by AI');
-  }catch(e){notify('⚠ Could not generate controls. Try again.');}
+    notify('✦ Controls suggested for Steps 3–5');
+  }catch(e){notify('⚠ Controls: '+(e.message||e),true);}
   btn.disabled=false;btn.innerHTML='✦ AI Suggest All Controls (Steps 3–5)';
 }
 
@@ -1048,25 +1127,24 @@ async function aiSuggestReco(id,btn){
   btn.disabled=true;btn.innerHTML='<span class="spin">⟳</span>';
   const catLbl=ALL_CATS.find(c=>c.id===s.category)?.lbl||'general hazard';
   const rCell=cell(s.rSev,s.rLik)||'not assessed';
-  const rCat=cat(s.rSev,s.rLik);
-  const rCatLbl=rCat?`Cat ${rCat} — ${CAT_LBL[rCat]}`:'not assessed';
+  const rCat=cat(s.rSev,s.rLik);const rCatLbl=rCat?`Cat ${rCat} — ${CAT_LBL[rCat]}`:'not assessed';
   try{
-    const txt=await callAI(`${projCtx()}\n\nHAZID Scenario: "${s.description||'not specified'}"\nCategory: ${catLbl}\nResidual Risk: ${rCell} (${rCatLbl})\nExisting Preventative Controls: ${s.preventCtrl||'none listed'}\nExisting Mitigative Controls: ${s.mitigCtrl||'none listed'}\nAdministrative Controls: ${s.adminCtrl||'none listed'}\n\nBased on the residual risk level, suggest 2–3 specific, actionable recommendations to further reduce risk or verify ALARP. Be practical and facility-specific. Return plain text only — no headings, no bullet points, just the recommendations as a paragraph or 2–3 sentences.`);
+    const txt=await callAI(`Project: ${projCtx()}\nHAZID scenario: "${s.description||'not specified'}"\nCategory: ${catLbl}\nResidual risk: ${rCell} (${rCatLbl})\nPreventative controls: ${s.preventCtrl||'none'}\nMitigative controls: ${s.mitigCtrl||'none'}\nAdmin controls: ${s.adminCtrl||'none'}\n\nWrite 2 to 3 specific, actionable recommendations to further reduce risk or confirm ALARP. Return plain text only — no headings, no bullets.`);
     const el=document.getElementById(`reco_${id}`);
     if(el){el.value=txt.trim();updSC(id,'reco',txt.trim());}
-    notify('✦ Recommendations suggested by AI');
-  }catch(e){notify('⚠ AI error: '+e.message);}
+    notify('✦ Recommendations suggested');
+  }catch(e){notify('⚠ Reco: '+(e.message||e),true);}
   btn.disabled=false;btn.innerHTML='✦ Reco';
 }
 
 // ═══════════════ EXPORT ═══════════════
 function exportCSV(){
-  const hdr=['#','ID','Category','Description','Causes','Init.Sev','Init.Lik','Init.Cell','Init.Cat','Prev.Controls','Mitig.Controls','Admin.Controls','Res.Sev','Res.Lik','Res.Cell','Res.Cat','Acceptability','Recommendations','Responsible','Due Date'];
+  const hdr=['#','ID','Category','Description','Causes','Consequences','Init.Sev','Init.Lik','Init.Cell','Init.Cat','Prev.Controls','Mitig.Controls','Admin.Controls','Res.Sev','Res.Lik','Res.Cell','Res.Cat','Acceptability','Recommendations','Responsible','Due Date'];
   const rows=ST.scenarios.map((s,i)=>{
     const ic=cell(s.iSev,s.iLik)||'',rc=cell(s.rSev,s.rLik)||'';
     const ik=RM[ic]||'',rk=RM[rc]||'';
     const cLbl=ALL_CATS.find(c=>c.id===s.category)?.lbl||'';
-    return[i+1,s.id,cLbl,s.description,s.causes,s.iSev,s.iLik,ic,ik?`Cat ${ik} ${CAT_LBL[ik]}`:'',s.preventCtrl,s.mitigCtrl,s.adminCtrl,s.rSev,s.rLik,rc,rk?`Cat ${rk} ${CAT_LBL[rk]}`:'',s.accept,s.reco,s.resp,s.due].map(v=>`"${String(v||'').replace(/"/g,'""')}"`);
+    return[i+1,s.id,cLbl,s.description,s.causes,s.consequences||'',s.iSev,s.iLik,ic,ik?`Cat ${ik} ${CAT_LBL[ik]}`:'',s.preventCtrl,s.mitigCtrl,s.adminCtrl,s.rSev,s.rLik,rc,rk?`Cat ${rk} ${CAT_LBL[rk]}`:'',s.accept,s.reco,s.resp,s.due].map(v=>`"${String(v||'').replace(/"/g,'""')}"`);
   });
   const csv=[hdr.map(h=>`"${h}"`).join(','),...rows.map(r=>r.join(','))].join('\n');
   dl(csv,`HAZID_${ST.setup.projectName||'Study'}_${ts()}.csv`,'text/csv');notify('✓ CSV exported');
@@ -1113,7 +1191,39 @@ function dl(content,filename,mime){
 function ts(){return new Date().toISOString().slice(0,10);}
 
 let nTimer;
-function notify(msg){const el=document.getElementById('notif');el.textContent=msg;el.classList.add('show');clearTimeout(nTimer);nTimer=setTimeout(()=>el.classList.remove('show'),3500);}
+function notify(msg,isErr){const el=document.getElementById('notif');el.textContent=msg;el.style.borderLeftColor=isErr?'#dc2626':'var(--amber)';el.classList.add('show');clearTimeout(nTimer);nTimer=setTimeout(()=>el.classList.remove('show'),isErr?8000:6000);}
+
+// ─── API KEY ────────────────────────────────────────────────────
+function getApiKey(){return localStorage.getItem('r2s_apikey')||'';}
+function getEndpoint(){const p=localStorage.getItem('r2s_proxy')||'';return p||'https://api.anthropic.com/v1/messages';}
+function showKeyModal(){
+  document.getElementById('keyModal').style.display='flex';
+  document.getElementById('keyInput').value=getApiKey();
+  document.getElementById('proxyInput').value=localStorage.getItem('r2s_proxy')||'';
+}
+function saveKey(){
+  const k=document.getElementById('keyInput').value.trim();
+  if(!k){return;}
+  const p=document.getElementById('proxyInput').value.trim();
+  localStorage.setItem('r2s_apikey',k);
+  if(p)localStorage.setItem('r2s_proxy',p);else localStorage.removeItem('r2s_proxy');
+  document.getElementById('keyModal').style.display='none';
+  updKeyBtn();notify('✓ Settings saved — AI features ready');
+}
+function clearKey(){
+  localStorage.removeItem('r2s_apikey');
+  document.getElementById('keyInput').value='';
+  updKeyBtn();notify('✓ Key cleared');
+}
+function updKeyBtn(){
+  const btn=document.getElementById('keyBtn');if(!btn)return;
+  const ok=!!getApiKey();
+  const proxy=localStorage.getItem('r2s_proxy')||'';
+  btn.textContent=ok?(proxy?'🔑 Key + Proxy ✓':'🔑 Key Set ✓'):'🔑 Set API Key';
+  btn.style.color=ok?'#22c55e':'';
+  btn.style.borderColor=ok?'#22c55e':'';
+}
+
 </script>
 </body>
 </html>
