@@ -462,6 +462,13 @@ textarea{resize:vertical;min-height:72px}
     <input type="password" id="keyInput" placeholder="sk-ant-api03-…" autocomplete="off"
       style="width:100%;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:14px;box-sizing:border-box"
       onkeydown="if(event.key==='Enter')saveKey()">
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">
+        Proxy URL <span style="font-weight:400;color:#94a3b8;text-transform:none;letter-spacing:0">— optional, only if direct API is blocked on your network</span>
+      </div>
+      <input type="text" id="proxyInput" placeholder="e.g. https://hazid.risktosafe.workers.dev  (leave blank for direct access)"
+        style="width:100%;padding:8px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;color:#1e293b">
+    </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
       <button onclick="clearKey()" style="padding:7px 14px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-right:auto;font-family:inherit">Clear Key</button>
       <button onclick="document.getElementById('keyModal').style.display='none'" style="padding:7px 14px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Cancel</button>
@@ -633,7 +640,7 @@ function updCatSum(){
 // ═══════════════ WORKSHEET ═══════════════
 function addScenario(data={}){
   const id=`S${String(nextId++).padStart(3,'0')}`;
-  ST.scenarios.push({id,category:'',description:'',causes:'',consequences:'',iSev:'',iLik:'',preventCtrl:'',mitigCtrl:'',adminCtrl:'',rSev:'',rLik:'',accept:'',reco:'',resp:'',due:'',created:new Date().toISOString(),...data});
+  ST.scenarios.push({id,area:'',category:'',effect:'',description:'',causes:'',consequences:'',scenarioNarrative:'',iSev:'',iLik:'',preventCtrl:'',mitigCtrl:'',adminCtrl:'',rSev:'',rLik:'',fmRef:'',accept:'',reco:'',resp:'',due:'',created:new Date().toISOString(),...data});
   renderWS();updateBadges();saveData();
   setTimeout(()=>{const el=document.getElementById(`sc_${id}`);if(el){el.classList.add('exp');el.scrollIntoView({behavior:'smooth',block:'center'});}},60);
 }
@@ -658,48 +665,96 @@ function catOpts(sel){let h='<option value="">— Select Category —</option>';
 function scHTML(s,n){
   const ic=cat(s.iSev,s.iLik),rc=cat(s.rSev,s.rLik);
   let meta='';
+  if(s.area)meta+=`<span style="font-size:10px;background:#f1f5f9;color:#475569;padding:2px 7px;border-radius:100px;font-weight:600">${s.area}</span> `;
+  if(s.effect)meta+=`<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:100px;font-weight:600">${s.effect}</span> `;
   if(ic)meta+=`<span class="rb ${CAT_CLS[ic]}" style="font-size:10px">${s.iSev}${s.iLik}</span>`;
   if(rc)meta+=` → <span class="rb ${CAT_CLS[rc]}" style="font-size:10px">${s.rSev}${s.rLik}</span>`;
   if(s.accept==='alarp')meta+=' <span class="tag alarp">ALARP</span>';
   if(s.accept==='action')meta+=' <span class="tag action">Action Required</span>';
-  const title=(s.description||`Scenario ${n}`).substring(0,65);
+  const title=(s.description||s.effect||`Scenario ${n}`).substring(0,65);
   return `<div class="sc-card" id="sc_${s.id}">
   <div class="sc-head" onclick="toggleSC('${s.id}')">
     <div class="sc-num">${n}</div>
-    <div class="sc-title">${title}</div>
-    <div class="sc-meta" id="sm_${s.id}">${meta}</div>
+    <div style="flex:1;min-width:0">
+      <div class="sc-title">${title}</div>
+      <div class="sc-meta" id="sm_${s.id}" style="margin-top:3px">${meta}</div>
+    </div>
     <div style="display:flex;gap:5px;align-items:center">
       <button class="btn btn-d btn-sm" onclick="delScenario('${s.id}');event.stopPropagation()">🗑</button>
       <div class="sc-chev">▼</div>
     </div>
   </div>
   <div class="sc-body">
-    <div class="fg2" style="margin-top:12px">
-      <div class="fg"><label>Hazard Scenario Description</label>
-        <textarea placeholder="Describe the hazard scenario or initiating event..." rows="2"
-          onchange="updSC('${s.id}','description',this.value)">${s.description}</textarea></div>
-      <div class="fg"><label>Hazard Category</label>
-        <select onchange="updSC('${s.id}','category',this.value)">${catOpts(s.category)}</select></div>
-    </div>
-    <div class="fg">
-      <label>Causes / Guidewords</label>
-      <div class="field-row">
-        <textarea placeholder="Root causes, deviations or guidewords..." rows="2"
-          id="causes_${s.id}" onchange="updSC('${s.id}','causes',this.value)">${s.causes}</textarea>
-        <button class="ai-btn-inline" onclick="aiSuggestCauses('${s.id}',this)" title="AI suggests causes for this scenario">✦ Causes</button>
+
+    <!-- ── IDENTIFICATION ── -->
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-top:12px">
+      <div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#64748b;margin-bottom:10px">📍 Scenario Identification</div>
+      <div class="fg2">
+        <div class="fg"><label>Area / Location</label>
+          <input type="text" placeholder="e.g. Control Centre, Storage Area, Process Unit A, Wellhead"
+            value="${s.area||''}" onchange="updSC('${s.id}','area',this.value)">
+          <div class="fhint">Physical location or node being studied</div></div>
+        <div class="fg"><label>Hazard Category</label>
+          <select onchange="updSC('${s.id}','category',this.value)">${catOpts(s.category)}</select></div>
       </div>
+      <div class="fg">
+        <label>Hazard Effect (Type)</label>
+        <div class="field-row">
+          <input type="text" list="effectList" placeholder="e.g. Fire / Explosion, Toxic Release, Mechanical Damage, Loss of Containment..."
+            id="effect_${s.id}" value="${s.effect||''}" onchange="updSC('${s.id}','effect',this.value)">
+          <datalist id="effectList">
+            <option value="Fire / Explosion"><option value="Toxic Gas Release"><option value="Loss of Containment">
+            <option value="Mechanical Damage"><option value="Structural Failure / Collapse"><option value="Asphyxiation">
+            <option value="Loss of Control"><option value="Personnel Injury / Fatality"><option value="Environmental Damage">
+            <option value="Asset Damage"><option value="Loss of Power / Utilities"><option value="Communication Failure">
+            <option value="Flooding / Liquid Release"><option value="Dropped Load / Impact"><option value="Operational Disruption">
+          </datalist>
+        </div>
+        <div class="fhint">HAZID is consequence-driven — the Effect defines the hazard type (ref. Table 5.1)</div>
+      </div>
+      <div class="fg"><label>Scenario Description</label>
+        <textarea placeholder="Brief description of the initiating event or deviation..." rows="2"
+          onchange="updSC('${s.id}','description',this.value)">${s.description}</textarea></div>
     </div>
-    <div class="fg">
-      <label>Consequences</label>
-      <div class="field-row">
-        <textarea placeholder="What would happen if this hazard is not controlled? (injuries, fatalities, asset damage, environmental impact, reputational harm...)" rows="2"
-          id="cons_${s.id}" onchange="updSC('${s.id}','consequences',this.value)">${s.consequences||''}</textarea>
-        <button class="ai-btn-inline" onclick="aiSuggestConsequences('${s.id}',this)" title="AI suggests consequences for this scenario">✦ Cons.</button>
+
+    <!-- ── CAUSE & CONSEQUENCE ── -->
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-top:10px">
+      <div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#64748b;margin-bottom:10px">⚡ Cause & Consequence Analysis</div>
+      <div class="fg">
+        <label>Causes / Guidewords</label>
+        <div class="field-row">
+          <textarea placeholder="Root causes, deviations or guidewords triggering this scenario..." rows="2"
+            id="causes_${s.id}" onchange="updSC('${s.id}','causes',this.value)">${s.causes}</textarea>
+          <button class="ai-btn-inline" onclick="aiSuggestCauses('${s.id}',this)">✦ Causes</button>
+        </div>
+      </div>
+      <div class="fg">
+        <label>Consequences</label>
+        <div class="field-row">
+          <textarea placeholder="What would happen if this hazard is not controlled? (injuries, fatalities, asset damage, environmental impact...)" rows="2"
+            id="cons_${s.id}" onchange="updSC('${s.id}','consequences',this.value)">${s.consequences||''}</textarea>
+          <button class="ai-btn-inline" onclick="aiSuggestConsequences('${s.id}',this)">✦ Cons.</button>
+        </div>
       </div>
     </div>
 
+    <!-- ── SCENARIO NARRATIVE ── -->
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:14px;margin-top:10px">
+      <div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#92400e;margin-bottom:10px">📋 Scenario Narrative <span style="font-weight:400;color:#b45309;text-transform:none;letter-spacing:0">(combined narrative for the HAZID record)</span></div>
+      <div class="fg" style="margin-bottom:0">
+        <div class="field-row">
+          <textarea placeholder="In [Area], [Effect] could occur due to [Cause]. This would result in [Consequence]..." rows="3"
+            id="narr_${s.id}" onchange="updSC('${s.id}','scenarioNarrative',this.value)">${s.scenarioNarrative||''}</textarea>
+          <button class="ai-btn-inline" onclick="aiGenerateNarrative('${s.id}',this)">✦ Narrate</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STEP 2: INITIAL RISK ── -->
     <div class="ss">
-      <div class="ss-title"><span class="sp">Step 2</span> Initial Risk — Before Existing Controls</div>
+      <div class="ss-title"><span class="sp">Step 2</span> Initial Risk Assessment — Before Existing Controls
+        <span style="font-weight:400;font-size:10px;color:#94a3b8;margin-left:6px">⚠ Confirm quantitative values post-meeting (ref. HAZID methodology)</span>
+      </div>
       <div class="rs-grid">
         <div class="fg"><label>Severity</label>
           <select onchange="updSC('${s.id}','iSev',this.value);updRiskDisplay('${s.id}')">
@@ -716,31 +771,27 @@ function scHTML(s,n){
       </div>
     </div>
 
-    <div style="display:flex;justify-content:flex-end;margin-top:8px">
-      <button class="btn btn-ai btn-sm" onclick="aiSuggestControls('${s.id}',this)" title="AI suggests controls for all 3 layers based on this scenario">✦ AI Suggest All Controls (Steps 3–5)</button>
+    <!-- ── CONTROLS ── -->
+    <div style="display:flex;justify-content:flex-end;margin-top:10px">
+      <button class="btn btn-ai btn-sm" onclick="aiSuggestControls('${s.id}',this)">✦ AI Suggest All Controls (Steps 3–5)</button>
     </div>
-
     <div class="ss">
-      <div class="ss-title"><span class="sp">Step 3</span> Preventative Controls (Pre-Incident)</div>
-      <div class="fg"><textarea placeholder="Engineering controls, barriers, interlocks, SIL-rated systems, process design features that PREVENT the hazard from occurring..." rows="3"
+      <div class="ss-title"><span class="sp">Step 3</span> Preventative Controls (Pre-Incident) — Reduce Likelihood</div>
+      <textarea placeholder="Engineering controls, barriers, interlocks, SIL systems, process design features that PREVENT the hazard occurring..." rows="3"
         id="prev_${s.id}" onchange="updSC('${s.id}','preventCtrl',this.value)">${s.preventCtrl}</textarea>
-        <div class="fhint">Controls that reduce the LIKELIHOOD of the initiating event</div></div>
     </div>
-
     <div class="ss">
-      <div class="ss-title"><span class="sp">Step 4</span> Mitigative / Recovery Controls (Post-Incident)</div>
-      <div class="fg"><textarea placeholder="PSV/BDV, deluge systems, ESD/EDP, secondary containment, bunds, emergency response, firefighting that REDUCE consequences..." rows="3"
+      <div class="ss-title"><span class="sp">Step 4</span> Mitigative / Recovery Controls (Post-Incident) — Reduce Consequence</div>
+      <textarea placeholder="PSV/BDV, deluge, ESD, secondary containment, emergency response systems that REDUCE consequences after the event..." rows="3"
         id="mitig_${s.id}" onchange="updSC('${s.id}','mitigCtrl',this.value)">${s.mitigCtrl}</textarea>
-        <div class="fhint">Controls that reduce the SEVERITY / consequences of the event</div></div>
     </div>
-
     <div class="ss">
       <div class="ss-title"><span class="sp">Step 5</span> Administrative & Training Controls</div>
-      <div class="fg"><textarea placeholder="PTW system, SOPs, JSA, toolbox talks, competency assurance, inspection programs, PPE, emergency drills..." rows="3"
+      <textarea placeholder="PTW, SOPs, JSA, toolbox talks, competency assurance, inspection programs, PPE, emergency drills..." rows="3"
         id="admin_${s.id}" onchange="updSC('${s.id}','adminCtrl',this.value)">${s.adminCtrl}</textarea>
-        <div class="fhint">Procedural, administrative and human factor controls</div></div>
     </div>
 
+    <!-- ── STEP 6: RESIDUAL RISK ── -->
     <div class="ss res">
       <div class="ss-title"><span class="sp">Step 6</span> Residual Risk — After All Existing Controls</div>
       <div class="rs-grid">
@@ -751,12 +802,18 @@ function scHTML(s,n){
           <select onchange="updSC('${s.id}','rLik',this.value);updRiskDisplay('${s.id}')">
             <option value="">— Select Residual Likelihood —</option>${likOpts(s.rLik)}</select></div>
       </div>
-      <div class="risk-result">
+      <div class="risk-result" style="margin-bottom:8px">
         <div id="rr_${s.id}">${rbHTML(s.rSev,s.rLik)}</div>
         <div class="rr-info">${s.rSev&&s.rLik?`${SEVERITY.find(sv=>sv.id==s.rSev)?.lbl} × ${LIKELIHOOD.find(l=>l.id===s.rLik)?.lbl}`:'Select residual ratings after applying controls'}</div>
       </div>
+      <div class="fg" style="margin-bottom:0">
+        <label>F&M Reference <span style="font-weight:400;color:#94a3b8;text-transform:none">(QRA linkage — to be completed post-meeting)</span></label>
+        <input type="text" placeholder="e.g. F=10⁻³  M=Risk 3  or  QRA Ref: 1.1.3" value="${s.fmRef||''}"
+          onchange="updSC('${s.id}','fmRef',this.value)" style="font-family:var(--mono);font-size:13px">
+      </div>
     </div>
 
+    <!-- ── STEP 7: ACCEPTABILITY ── -->
     <div class="ss">
       <div class="ss-title"><span class="sp">Step 7</span> Risk Acceptability & Recommendations</div>
       <div style="margin-bottom:10px"><label>Acceptability Decision</label>
@@ -769,31 +826,39 @@ function scHTML(s,n){
             ⚠ Action Required</button>
         </div>
       </div>
-      <div class="fg"><label>Recommendations / Actions</label>
+      <div class="fg"><label>Recommendations / Actions <span style="font-weight:400;color:#94a3b8;text-transform:none">(to be prioritised post-meeting via QRA)</span></label>
         <div class="field-row">
-          <textarea placeholder="Describe recommended actions, additional controls or further studies..." rows="2"
+          <textarea placeholder="Describe recommended actions, additional controls or further studies required..." rows="2"
             id="reco_${s.id}" onchange="updSC('${s.id}','reco',this.value)">${s.reco}</textarea>
-          <button class="ai-btn-inline" onclick="aiSuggestReco('${s.id}',this)" title="AI recommends actions based on residual risk and current controls">✦ Reco</button>
+          <button class="ai-btn-inline" onclick="aiSuggestReco('${s.id}',this)">✦ Reco</button>
         </div>
       </div>
       <div class="fg2">
-        <div class="fg"><label>Responsible Party</label>
+        <div class="fg"><label>Actions On (Responsible)</label>
           <input type="text" placeholder="Name / Role / Department" value="${s.resp}" onchange="updSC('${s.id}','resp',this.value)"></div>
         <div class="fg"><label>Target Completion Date</label>
           <input type="date" value="${s.due}" onchange="updSC('${s.id}','due',this.value)"></div>
       </div>
     </div>
   </div>
-</div>`;
-}
+</div>`;}
 
 function renderWS(){
   const el=document.getElementById('wsContainer');
   const fCat=document.getElementById('filterCat');
-  if(fCat){const cur=fCat.value;let h='<option value="">All Categories</option>';GROUPS.forEach(g=>{h+=`<optgroup label="${g.g}">`;g.cats.forEach(c=>h+=`<option value="${c.id}"${cur===c.id?' selected':''}>${c.lbl}</option>`);h+='</optgroup>';});fCat.innerHTML=h;}
-  if(!ST.scenarios.length){el.innerHTML=`<div class="es"><div class="es-icon">📝</div><div class="es-title">No scenarios yet</div><div class="es-desc">Click "Add Scenario" to start, or use "✦ AI Generate Scenarios" to auto-generate based on your project context.</div><button class="btn btn-p btn-lg" onclick="addScenario()">+ Add First Scenario</button></div>`;return;}
+  if(fCat){
+    const cur=fCat.value;
+    let h='<option value="">All Categories</option>';
+    GROUPS.forEach(g=>{h+=`<optgroup label="${g.g}">`;g.cats.forEach(c=>h+=`<option value="${c.id}"${cur===c.id?' selected':''}>${c.lbl}</option>`);h+='</optgroup>';});
+    fCat.innerHTML=h;
+  }
+  if(!ST.scenarios.length){
+    el.innerHTML=`<div class="es"><div class="es-icon">📝</div><div class="es-title">No scenarios yet</div><div class="es-desc">Click "+ Add Scenario" to start, or use "✦ AI Generate Scenarios" to auto-generate based on your project context.</div><button class="btn btn-p btn-lg" onclick="addScenario()">+ Add First Scenario</button></div>`;
+    return;
+  }
   el.innerHTML=ST.scenarios.map((s,i)=>scHTML(s,i+1)).join('');
 }
+
 function filterScenarios(){
   const q=(document.getElementById('scSearch')?.value||'').toLowerCase();
   const fc=document.getElementById('filterCat')?.value||'';
@@ -801,7 +866,7 @@ function filterScenarios(){
   document.querySelectorAll('.sc-card').forEach((card,i)=>{
     const s=ST.scenarios[i];if(!s)return;
     let show=true;
-    if(q&&!s.description.toLowerCase().includes(q)&&!s.causes.toLowerCase().includes(q))show=false;
+    if(q&&!(s.description||'').toLowerCase().includes(q)&&!(s.causes||'').toLowerCase().includes(q)&&!(s.area||'').toLowerCase().includes(q)&&!(s.effect||'').toLowerCase().includes(q))show=false;
     if(fc&&s.category!==fc)show=false;
     if(fr){const ic=cat(s.iSev,s.iLik),rc=cat(s.rSev,s.rLik);if(String(ic)!==fr&&String(rc)!==fr)show=false;}
     card.style.display=show?'':'none';
@@ -1074,7 +1139,7 @@ async function aiSuggestCauses(id,btn){
   btn.disabled=true;btn.innerHTML='<span class="spin">⟳</span>';
   const catLbl=ALL_CATS.find(c=>c.id===s.category)?.lbl||'general hazard';
   try{
-    const txt=await callAI(`Project: ${projCtx()}\nHAZID scenario: "${s.description||'not specified'}"\nCategory: ${catLbl}\n\nList 5 to 7 specific root causes or guidewords. Return ONLY the causes as plain text separated by semicolons. No numbering, no bullets, no intro, no explanation.`);
+    const txt=await callAI(`Project: ${projCtx()}\nArea: ${s.area||'not specified'}\nEffect: ${s.effect||'not specified'}\nScenario: "${s.description||'not specified'}"\nCategory: ${catLbl}\n\nList 5 to 7 specific root causes or guidewords. Return ONLY the causes as plain text separated by semicolons. No numbering, no bullets, no intro, no explanation.`);
     const el=document.getElementById(`causes_${id}`);
     if(el){el.value=txt.trim();updSC(id,'causes',txt.trim());}
     notify('✦ Causes suggested');
@@ -1100,6 +1165,30 @@ Describe 3 to 5 potential consequences if this hazard is not controlled. Cover: 
     notify('✦ Consequences suggested');
   }catch(e){notify('⚠ Consequences: '+(e.message||e),true);}
   btn.disabled=false;btn.innerHTML='✦ Cons.';
+}
+
+// ═══ AI GENERATE SCENARIO NARRATIVE ═══
+async function aiGenerateNarrative(id,btn){
+  const s=ST.scenarios.find(s=>s.id===id);if(!s)return;
+  btn.disabled=true;btn.innerHTML='<span class="spin">⟳</span>';
+  const catLbl=ALL_CATS.find(c=>c.id===s.category)?.lbl||'general hazard';
+  try{
+    const txt=await callAI(`You are a HAZID scribe. Write a concise scenario narrative (2-3 sentences) for the HAZID worksheet record.
+
+Project: ${projCtx()}
+Area/Location: ${s.area||'not specified'}
+Hazard Effect: ${s.effect||'not specified'}
+Category: ${catLbl}
+Description: ${s.description||'not specified'}
+Causes: ${s.causes||'not specified'}
+Consequences: ${s.consequences||'not specified'}
+
+Write in this style: "In [Area], [Effect] could occur due to [Cause]. This would result in [Consequence]." Use professional HAZID language. Plain text only, no headings, no bullets.`);
+    const el=document.getElementById('narr_'+id);
+    if(el){el.value=txt.trim();updSC(id,'scenarioNarrative',txt.trim());}
+    notify('✦ Scenario narrative generated');
+  }catch(e){notify('⚠ '+(e.message||e),true);}
+  btn.disabled=false;btn.innerHTML='✦ Narrate';
 }
 
 // ═══ AI SUGGEST CONTROLS ═══
@@ -1139,12 +1228,12 @@ async function aiSuggestReco(id,btn){
 
 // ═══════════════ EXPORT ═══════════════
 function exportCSV(){
-  const hdr=['#','ID','Category','Description','Causes','Consequences','Init.Sev','Init.Lik','Init.Cell','Init.Cat','Prev.Controls','Mitig.Controls','Admin.Controls','Res.Sev','Res.Lik','Res.Cell','Res.Cat','Acceptability','Recommendations','Responsible','Due Date'];
+  const hdr=['#','ID','Area','Category','Effect','Description','Causes','Consequences','Scenario Narrative','Init.Sev','Init.Lik','Init.Cell','Init.Cat','Prev.Controls','Mitig.Controls','Admin.Controls','Res.Sev','Res.Lik','Res.Cell','Res.Cat','Acceptability','Recommendations','Responsible','Due Date'];
   const rows=ST.scenarios.map((s,i)=>{
     const ic=cell(s.iSev,s.iLik)||'',rc=cell(s.rSev,s.rLik)||'';
     const ik=RM[ic]||'',rk=RM[rc]||'';
     const cLbl=ALL_CATS.find(c=>c.id===s.category)?.lbl||'';
-    return[i+1,s.id,cLbl,s.description,s.causes,s.consequences||'',s.iSev,s.iLik,ic,ik?`Cat ${ik} ${CAT_LBL[ik]}`:'',s.preventCtrl,s.mitigCtrl,s.adminCtrl,s.rSev,s.rLik,rc,rk?`Cat ${rk} ${CAT_LBL[rk]}`:'',s.accept,s.reco,s.resp,s.due].map(v=>`"${String(v||'').replace(/"/g,'""')}"`);
+    return[i+1,s.id,s.area||'',cLbl,s.effect||'',s.description,s.causes,s.consequences||'',s.scenarioNarrative||'',s.iSev,s.iLik,ic,ik?`Cat ${ik} ${CAT_LBL[ik]}`:'',s.preventCtrl,s.mitigCtrl,s.adminCtrl,s.rSev,s.rLik,rc,rk?`Cat ${rk} ${CAT_LBL[rk]}`:'',s.fmRef||'',s.accept,s.reco,s.resp,s.due].map(v=>`"${String(v||'').replace(/"/g,'""')}"`);
   });
   const csv=[hdr.map(h=>`"${h}"`).join(','),...rows.map(r=>r.join(','))].join('\n');
   dl(csv,`HAZID_${ST.setup.projectName||'Study'}_${ts()}.csv`,'text/csv');notify('✓ CSV exported');
@@ -1199,12 +1288,14 @@ function getEndpoint(){const p=localStorage.getItem('r2s_proxy')||'';return p||'
 function showKeyModal(){
   document.getElementById('keyModal').style.display='flex';
   document.getElementById('keyInput').value=getApiKey();
-  document.getElementById('proxyInput').value=localStorage.getItem('r2s_proxy')||'';
+  const proxyEl=document.getElementById('proxyInput');
+  if(proxyEl)proxyEl.value=localStorage.getItem('r2s_proxy')||'';
 }
 function saveKey(){
   const k=document.getElementById('keyInput').value.trim();
-  if(!k){return;}
-  const p=document.getElementById('proxyInput').value.trim();
+  if(!k){notify('⚠ Please enter your API key first',true);return;}
+  const proxyEl=document.getElementById('proxyInput');
+  const p=proxyEl?proxyEl.value.trim():'';
   localStorage.setItem('r2s_apikey',k);
   if(p)localStorage.setItem('r2s_proxy',p);else localStorage.removeItem('r2s_proxy');
   document.getElementById('keyModal').style.display='none';
